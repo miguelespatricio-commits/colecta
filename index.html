@@ -401,6 +401,7 @@ const DEFAULT_CONFIG = {
   moneyGoalWeekly: 80000,
   periodStart: new Date().toISOString(),
   adminPin: '',
+  adminBirthdate: '',
   transferInfo: '',
   foodGoals: [
     { id: 'secos', name: 'Arroz, fideos y verdura', goal: 10 },
@@ -711,43 +712,119 @@ document.getElementById('gearBtn').addEventListener('click', () => {
   if(isAdmin) openSettingsModal();
 });
 
+let adminFlowMode = 'entry'; // 'entry' | 'create' | 'forgot' | 'reset'
+
+function pinFieldHTML(id, labelText){
+  return `
+      <label for="${id}">${labelText}</label>
+      <div style="position:relative;">
+        <input type="password" id="${id}" inputmode="numeric" placeholder="••••" style="padding-right:44px;">
+        <button type="button" class="pin-eye" data-target="${id}" style="position:absolute;right:6px;top:6px;bottom:6px;width:34px;background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:16px;">&#128065;</button>
+      </div>
+  `;
+}
+
+function wireEyeButtons(container){
+  container.querySelectorAll('.pin-eye').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById(btn.dataset.target);
+      if(!input) return;
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      btn.innerHTML = showing ? '&#128065;' : '&#128568;';
+    });
+  });
+}
+
 function openAdminModal(){
   const title = document.getElementById('adminModalTitle');
   const body = document.getElementById('adminModalBody');
   if(!config.adminPin){
+    adminFlowMode = 'create';
     title.textContent = 'Configurar administrador';
     body.innerHTML = `
-      <p class="hint">Todavía no hay un PIN de administrador configurado. Elegí uno para este comedor (compartilo solo con quien vaya a manejar la configuración).</p>
-      <label for="newPin">Nuevo PIN (4 a 8 dígitos)</label>
-      <input type="password" id="newPin" inputmode="numeric" placeholder="••••">
-      <p class="err-text" id="adminErr">El PIN debe tener entre 4 y 8 dígitos.</p>
+      <p class="hint">Todavía no hay un PIN de administrador configurado. Elegí uno para este comedor (compartilo solo con quien vaya a manejar la configuración). También pedimos una fecha de nacimiento de respaldo, para poder restablecer el PIN si se olvida.</p>
+      ${pinFieldHTML('newPin', 'Nuevo PIN (4 a 8 dígitos)')}
+      <label for="newPinBirth">Fecha de nacimiento (respaldo para recuperar el PIN)</label>
+      <input type="text" id="newPinBirth" placeholder="DD/MM/AAAA">
+      <p class="err-text" id="adminErr">Revisá los datos ingresados.</p>
     `;
+    wireEyeButtons(body);
   } else {
+    adminFlowMode = 'entry';
     title.textContent = 'Acceso de administrador';
     body.innerHTML = `
-      <label for="pinEntry">Ingresá el PIN de administrador</label>
-      <input type="password" id="pinEntry" inputmode="numeric" placeholder="••••">
+      ${pinFieldHTML('pinEntry', 'Ingresá el PIN de administrador')}
       <p class="err-text" id="adminErr">PIN incorrecto.</p>
+      <button type="button" class="admin-link" id="forgotPinLink" style="margin-top:10px;">Olvidaste el PIN</button>
+    `;
+    wireEyeButtons(body);
+    document.getElementById('forgotPinLink').addEventListener('click', openForgotPinStep);
+  }
+  adminOverlay.classList.add('show');
+}
+
+function openForgotPinStep(){
+  adminFlowMode = 'forgot';
+  const title = document.getElementById('adminModalTitle');
+  const body = document.getElementById('adminModalBody');
+  title.textContent = 'Recuperar acceso';
+  if(!config.adminBirthdate){
+    body.innerHTML = `
+      <p class="hint">Este comedor todavía no tiene una fecha de nacimiento de respaldo guardada, así que no se puede recuperar el PIN de forma automática. Para restablecerlo hace falta borrar el campo adminPin directamente desde la consola de Firebase, en el documento de configuración.</p>
+    `;
+    document.getElementById('submitAdminBtn').style.display = 'none';
+  } else {
+    body.innerHTML = `
+      <p class="hint">Ingresá la fecha de nacimiento de respaldo para poder elegir un PIN nuevo.</p>
+      <label for="birthCheck">Fecha de nacimiento</label>
+      <input type="text" id="birthCheck" placeholder="DD/MM/AAAA">
+      <p class="err-text" id="adminErr">La fecha no coincide.</p>
     `;
   }
   adminOverlay.classList.add('show');
 }
-document.getElementById('cancelAdminBtn').addEventListener('click', () => adminOverlay.classList.remove('show'));
+
+function openResetPinStep(){
+  adminFlowMode = 'reset';
+  const title = document.getElementById('adminModalTitle');
+  const body = document.getElementById('adminModalBody');
+  document.getElementById('submitAdminBtn').style.display = 'inline-block';
+  title.textContent = 'Elegí un nuevo PIN';
+  body.innerHTML = `
+      ${pinFieldHTML('resetPin', 'Nuevo PIN (4 a 8 dígitos)')}
+      <p class="err-text" id="adminErr">El PIN debe tener entre 4 y 8 dígitos.</p>
+  `;
+  wireEyeButtons(body);
+}
+
+document.getElementById('cancelAdminBtn').addEventListener('click', () => {
+  adminOverlay.classList.remove('show');
+  document.getElementById('submitAdminBtn').style.display = 'inline-block';
+});
 
 document.getElementById('submitAdminBtn').addEventListener('click', async () => {
   const errEl = document.getElementById('adminErr');
   errEl.classList.remove('show');
   const submitBtn = document.getElementById('submitAdminBtn');
-  if(!config.adminPin){
+
+  if(adminFlowMode === 'create'){
     const val = document.getElementById('newPin').value.trim();
+    const birth = document.getElementById('newPinBirth').value.trim();
     if(!/^\d{4,8}$/.test(val)){
       errEl.textContent = 'El PIN debe tener entre 4 y 8 dígitos.';
+      errEl.classList.add('show');
+      return;
+    }
+    if(!/^\d{2}\/\d{2}\/\d{4}$/.test(birth)){
+      errEl.textContent = 'Ingresá la fecha de nacimiento en formato DD/MM/AAAA.';
       errEl.classList.add('show');
       return;
     }
     submitBtn.disabled = true;
     try{
       config.adminPin = val;
+      config.adminBirthdate = birth;
       await saveConfig();
       saveAdminFlag(true);
       adminOverlay.classList.remove('show');
@@ -755,12 +832,14 @@ document.getElementById('submitAdminBtn').addEventListener('click', async () => 
       openSettingsModal();
     }catch(e){
       config.adminPin = '';
+      config.adminBirthdate = '';
       errEl.textContent = 'No se pudo guardar. Revisá tu conexión e intentá de nuevo.';
       errEl.classList.add('show');
     }finally{
       submitBtn.disabled = false;
     }
-  } else {
+
+  } else if(adminFlowMode === 'entry'){
     const val = document.getElementById('pinEntry').value.trim();
     if(val !== config.adminPin){
       errEl.textContent = 'PIN incorrecto.';
@@ -770,6 +849,39 @@ document.getElementById('submitAdminBtn').addEventListener('click', async () => 
     saveAdminFlag(true);
     adminOverlay.classList.remove('show');
     render();
+
+  } else if(adminFlowMode === 'forgot'){
+    const val = document.getElementById('birthCheck').value.trim();
+    if(val !== config.adminBirthdate){
+      errEl.textContent = 'La fecha no coincide.';
+      errEl.classList.add('show');
+      return;
+    }
+    openResetPinStep();
+
+  } else if(adminFlowMode === 'reset'){
+    const val = document.getElementById('resetPin').value.trim();
+    if(!/^\d{4,8}$/.test(val)){
+      errEl.textContent = 'El PIN debe tener entre 4 y 8 dígitos.';
+      errEl.classList.add('show');
+      return;
+    }
+    submitBtn.disabled = true;
+    const prevPin = config.adminPin;
+    try{
+      config.adminPin = val;
+      await saveConfig();
+      saveAdminFlag(true);
+      adminOverlay.classList.remove('show');
+      render();
+      openSettingsModal();
+    }catch(e){
+      config.adminPin = prevPin;
+      errEl.textContent = 'No se pudo guardar. Revisá tu conexión e intentá de nuevo.';
+      errEl.classList.add('show');
+    }finally{
+      submitBtn.disabled = false;
+    }
   }
 });
 
