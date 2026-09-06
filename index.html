@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Colecta comedor</title>
+<title>Colecta del comedor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -352,7 +352,33 @@
     <p class="hint">Al iniciar un nuevo período, las barras vuelven a cero. El historial de donaciones no se borra.</p>
   </div>
 </div>
+<!-- Editar donación (admin) -->
+<div class="overlay" id="editDonationOverlay">
+  <div class="modal">
+    <h2>Editar donación</h2>
+    <label for="editDonorName">Nombre del donante</label>
+    <input type="text" id="editDonorName" placeholder="Anónimo">
 
+    <div id="editMoneyFields">
+      <label for="editMoneyAmount">Monto ($)</label>
+      <input type="number" id="editMoneyAmount" min="1">
+    </div>
+
+    <div id="editFoodFields" style="display:none;">
+      <label for="editFoodCategory">Producto</label>
+      <select id="editFoodCategory"></select>
+      <label for="editFoodAmount">Cantidad (kg)</label>
+      <input type="number" id="editFoodAmount" min="0.1" step="0.1">
+    </div>
+
+    <p class="form-err" id="editDonationErr"></p>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" id="cancelEditDonationBtn">Cancelar</button>
+      <button class="btn-solid" id="saveEditDonationBtn">Guardar</button>
+    </div>
+  </div>
+</div>
 <!--
   ============================================================
   CONFIGURACIÓN DE FIREBASE — completá esto con tus datos
@@ -421,6 +447,7 @@ const PALETTE = [
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 let donations = [];
 let isAdmin = false;
+let pendingDeleteId = null;
 
 function fmtMoney(n){ return '$' + Math.round(n).toLocaleString('es-AR'); }
 function fmtKg(n){ return (Math.round(n*10)/10).toLocaleString('es-AR') + ' kg'; }
@@ -591,17 +618,35 @@ function render(){
         const f = config.foodGoals.find(x=>x.id===d.foodId);
         detail = fmtKg(d.amount) + ' · ' + (f ? f.name : 'alimento (categoría eliminada)');
       }
-      row.innerHTML = `
-        <div>
-          <div class="feed-name">${d.donor || 'Anónimo'}</div>
-          <div class="feed-detail">${detail}</div>
-        </div>
-        <div class="feed-when">${relTime(d.ts)}</div>
-      `;
+      if(isAdmin && pendingDeleteId === d.id){
+        row.innerHTML = `
+          <div>
+            <div class="feed-name">${d.donor || 'Anónimo'}</div>
+            <div class="feed-detail">¿Eliminar esta donación?</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="feed-cancel-delete" data-id="${d.id}" style="background:none;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;">No</button>
+            <button type="button" class="feed-confirm-delete" data-id="${d.id}" style="background:var(--err);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;">Sí, eliminar</button>
+          </div>
+        `;
+      } else {
+        row.innerHTML = `
+          <div>
+            <div class="feed-name">${d.donor || 'Anónimo'}</div>
+            <div class="feed-detail">${detail}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="feed-when">${relTime(d.ts)}</div>
+            ${isAdmin ? `
+              <button type="button" class="feed-edit-btn" data-id="${d.id}" title="Editar" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;">&#9998;</button>
+              <button type="button" class="feed-delete-btn" data-id="${d.id}" title="Eliminar" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;">&#128465;</button>
+            ` : ''}
+          </div>
+        `;
+      }
       feed.appendChild(row);
     });
-  }
-
+  }  
   populateFoodSelect();
   updateFormLocks();
 }
@@ -702,6 +747,123 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     formErr.classList.add('show');
   }finally{
     btn.disabled = false;
+  }
+});
+// --- Editar / eliminar donaciones (admin) ---
+document.getElementById('feed').addEventListener('click', (e) => {
+  const editBtn = e.target.closest('.feed-edit-btn');
+  const delBtn = e.target.closest('.feed-delete-btn');
+  const confirmBtn = e.target.closest('.feed-confirm-delete');
+  const cancelBtn = e.target.closest('.feed-cancel-delete');
+
+  if(editBtn){
+    openEditDonationModal(editBtn.dataset.id);
+  } else if(delBtn){
+    pendingDeleteId = delBtn.dataset.id;
+    render();
+  } else if(cancelBtn){
+    pendingDeleteId = null;
+    render();
+  } else if(confirmBtn){
+    const id = confirmBtn.dataset.id;
+    const idx = donations.findIndex(x => x.id === id);
+    if(idx !== -1){
+      const removed = donations.splice(idx, 1)[0];
+      pendingDeleteId = null;
+      saveDonations().catch(() => {
+        donations.splice(idx, 0, removed);
+        render();
+      });
+      render();
+    } else {
+      pendingDeleteId = null;
+      render();
+    }
+  }
+});
+
+const editDonationOverlay = document.getElementById('editDonationOverlay');
+let editingDonationId = null;
+
+function openEditDonationModal(id){
+  const d = donations.find(x => x.id === id);
+  if(!d) return;
+  editingDonationId = id;
+  document.getElementById('editDonationErr').classList.remove('show');
+  document.getElementById('editDonorName').value = d.donor || '';
+
+  const moneyFields = document.getElementById('editMoneyFields');
+  const foodFields = document.getElementById('editFoodFields');
+  if(d.type === 'money'){
+    moneyFields.style.display = 'block';
+    foodFields.style.display = 'none';
+    document.getElementById('editMoneyAmount').value = d.amount;
+  } else {
+    moneyFields.style.display = 'none';
+    foodFields.style.display = 'block';
+    const sel = document.getElementById('editFoodCategory');
+    sel.innerHTML = '';
+    config.foodGoals.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = f.name;
+      sel.appendChild(opt);
+    });
+    sel.value = d.foodId;
+    document.getElementById('editFoodAmount').value = d.amount;
+  }
+  editDonationOverlay.classList.add('show');
+}
+
+document.getElementById('cancelEditDonationBtn').addEventListener('click', () => {
+  editDonationOverlay.classList.remove('show');
+  editingDonationId = null;
+});
+
+document.getElementById('saveEditDonationBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('editDonationErr');
+  errEl.classList.remove('show');
+  const idx = donations.findIndex(x => x.id === editingDonationId);
+  if(idx === -1){ editDonationOverlay.classList.remove('show'); return; }
+
+  const prev = JSON.parse(JSON.stringify(donations[idx]));
+  const donor = document.getElementById('editDonorName').value.trim() || 'Anónimo';
+
+  if(donations[idx].type === 'money'){
+    const amt = parseFloat(document.getElementById('editMoneyAmount').value);
+    if(!amt || amt <= 0){
+      errEl.textContent = 'Ingresá un monto válido.';
+      errEl.classList.add('show');
+      return;
+    }
+    donations[idx].donor = donor;
+    donations[idx].amount = amt;
+  } else {
+    const amt = parseFloat(document.getElementById('editFoodAmount').value);
+    const foodId = document.getElementById('editFoodCategory').value;
+    if(!amt || amt <= 0){
+      errEl.textContent = 'Ingresá una cantidad válida.';
+      errEl.classList.add('show');
+      return;
+    }
+    donations[idx].donor = donor;
+    donations[idx].foodId = foodId;
+    donations[idx].amount = amt;
+  }
+
+  const saveBtn = document.getElementById('saveEditDonationBtn');
+  saveBtn.disabled = true;
+  try{
+    await saveDonations();
+    editDonationOverlay.classList.remove('show');
+    editingDonationId = null;
+    render();
+  }catch(e){
+    donations[idx] = prev;
+    errEl.textContent = 'No se pudo guardar. Revisá tu conexión e intentá de nuevo.';
+    errEl.classList.add('show');
+  }finally{
+    saveBtn.disabled = false;
   }
 });
 
