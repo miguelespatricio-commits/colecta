@@ -106,6 +106,13 @@
   .dropoff-label{font-weight:600;font-size:14.5px;margin-bottom:2px;}
   .dropoff-addr{font-size:14px;color:var(--ink);}
   .dropoff-notes{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+    .news-card{
+    background:var(--gold-soft);border:1px solid var(--gold);border-radius:10px;
+    padding:14px 16px;margin-bottom:10px;
+  }
+  .news-card .news-title{font-family:'Lora',serif;font-weight:600;font-size:15.5px;margin-bottom:4px;color:var(--ink);}
+  .news-card .news-body{font-size:13.5px;color:var(--ink);white-space:pre-wrap;line-height:1.5;}
+  .news-card .news-date{font-size:11.5px;color:var(--ink-soft);margin-top:6px;}
 
   .cta{
     width:100%;padding:14px;border:none;border-radius:8px;
@@ -244,10 +251,18 @@
       <button class="gear" id="ledgerBtn" aria-label="Ingresos y egresos" title="Ingresos y egresos">&#128179;</button>
       <button class="gear" id="gearBtn" aria-label="Configuración">⚙</button>
     </div>
-  </header>
+  <section class="block" id="dropoffSection" style="display:none;">
+    <p class="block-title">Dónde dejar tu donación de alimentos</p>
+    <div id="dropoffList"></div>
+  </section>
 
-  <section class="block">
-    <p class="block-title">Dinero recaudado este período</p>
+  <section class="block" id="aboutSection" style="display:none;">
+    <p class="block-title">Sobre nosotros</p>
+    <div class="food-row" id="aboutBox" style="white-space:pre-wrap;"></div>
+    <div id="socialLinksList" style="margin-top:10px;"></div>
+  </section>
+
+  <button class="cta" id="openFormBtn">Cargar una donación</button>
     <div class="money-card">
       <div class="money-top">
         <span class="num" id="moneyNow">$0</span>
@@ -270,6 +285,12 @@
   <section class="block" id="dropoffSection" style="display:none;">
     <p class="block-title">Dónde dejar tu donación de alimentos</p>
     <div id="dropoffList"></div>
+  </section>
+
+  <section class="block" id="aboutSection" style="display:none;">
+    <p class="block-title">Sobre nosotros</p>
+    <div class="food-row" id="aboutBox" style="white-space:pre-wrap;"></div>
+    <div id="socialLinksList" style="margin-top:10px;"></div>
   </section>
 
   <button class="cta" id="openFormBtn">Cargar una donación</button>
@@ -365,6 +386,23 @@
       <label style="margin-top:0;">Puntos de entrega</label>
       <div id="dropoffEdit"></div>
       <button type="button" class="add-link" id="addDropoffBtn">+ Agregar punto de entrega</button>
+    </div>
+
+    <div class="settings-section">
+      <label style="margin-top:0;">Descripción de la página (opcional)</label>
+      <textarea id="setAboutText" placeholder="Contanos brevemente quiénes son y qué hacen"></textarea>
+    </div>
+
+    <div class="settings-section">
+      <label style="margin-top:0;">Redes sociales / galería de fotos</label>
+      <div id="socialLinksEdit"></div>
+      <button type="button" class="add-link" id="addSocialBtn">+ Agregar link</button>
+    </div>
+
+    <div class="settings-section">
+      <label style="margin-top:0;">Noticias y novedades</label>
+      <div id="newsEdit"></div>
+      <button type="button" class="add-link" id="addNewsBtn">+ Agregar noticia</button>
     </div>
 
     <p class="form-err" id="settingsErr"></p>
@@ -544,7 +582,10 @@ const DEFAULT_CONFIG = {
     { id: 'secos', name: 'Arroz, fideos y verdura', goal: 10 },
     { id: 'carne', name: 'Carne', goal: 6 }
   ],
-  dropoffPoints: []
+  dropoffPoints: [],
+  aboutText: '',
+  socialLinks: [],
+  news: []
 };
 
 const PALETTE = [
@@ -607,6 +648,9 @@ function sanitizeConfig(raw){
   const c = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), raw || {});
   if(!Array.isArray(c.foodGoals)) c.foodGoals = DEFAULT_CONFIG.foodGoals;
   if(!Array.isArray(c.dropoffPoints)) c.dropoffPoints = [];
+  if(!Array.isArray(c.socialLinks)) c.socialLinks = [];
+  if(!Array.isArray(c.news)) c.news = [];
+  if(typeof c.aboutText !== 'string') c.aboutText = '';
   return c;
 }
 
@@ -652,6 +696,22 @@ function render(){
 
   document.getElementById('gearBtn').classList.toggle('show', isAdmin);
   document.getElementById('ledgerBtn').classList.toggle('show', isAdmin);
+
+  const newsSection = document.getElementById('newsSection');
+  const newsList = document.getElementById('newsList');
+  const newsItems = [...(config.news || [])].sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+  if(newsItems.length > 0){
+    newsSection.style.display = 'block';
+    newsList.innerHTML = newsItems.map(n => `
+      <div class="news-card">
+        <div class="news-title">${n.title}</div>
+        <div class="news-body">${n.body}</div>
+        <div class="news-date">${new Date(n.ts).toLocaleDateString('es-AR', {day:'numeric', month:'long', year:'numeric'})}</div>
+      </div>
+    `).join('');
+  } else {
+    newsSection.style.display = 'none';
+  }
 
   const mNow = moneyTotal();
   const mGoal = config.moneyGoalMonthly;
@@ -717,6 +777,29 @@ function render(){
     });
   } else {
     dropoffSection.style.display = 'none';
+  }
+
+  const aboutSection = document.getElementById('aboutSection');
+  const aboutBox = document.getElementById('aboutBox');
+  const socialLinksList = document.getElementById('socialLinksList');
+  const hasAbout = config.aboutText && config.aboutText.trim();
+  const hasSocial = config.socialLinks && config.socialLinks.length > 0;
+  if(hasAbout || hasSocial){
+    aboutSection.style.display = 'block';
+    aboutBox.style.display = hasAbout ? 'block' : 'none';
+    aboutBox.textContent = config.aboutText || '';
+    socialLinksList.innerHTML = '';
+    (config.socialLinks || []).forEach(s => {
+      const a = document.createElement('a');
+      a.href = s.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = s.label;
+      a.style.cssText = 'display:inline-block;margin:4px 8px 4px 0;padding:8px 14px;background:var(--paper);border:1px solid var(--line);border-radius:20px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;';
+      socialLinksList.appendChild(a);
+    });
+  } else {
+    aboutSection.style.display = 'none';
   }
 
   const feed = document.getElementById('feed');
@@ -1519,8 +1602,11 @@ function openSettingsModal(){
   document.getElementById('setMonthlyGoal').value = config.moneyGoalMonthly;
   document.getElementById('setWeeklyGoal').value = config.moneyGoalWeekly;
   document.getElementById('setTransferInfo').value = config.transferInfo || '';
+  document.getElementById('setAboutText').value = config.aboutText || '';
   renderFoodGoalsEdit();
   renderDropoffEdit();
+  renderSocialLinksEdit();
+  renderNewsEdit();
   settingsOverlay.classList.add('show');
 }
 document.getElementById('cancelSettingsBtn').addEventListener('click', () => settingsOverlay.classList.remove('show'));
@@ -1601,6 +1687,82 @@ document.getElementById('addDropoffBtn').addEventListener('click', () => {
   drawDropoffEdit();
 });
 
+let editSocialLinks = [];
+function renderSocialLinksEdit(){
+  editSocialLinks = JSON.parse(JSON.stringify(config.socialLinks || []));
+  drawSocialLinksEdit();
+}
+function drawSocialLinksEdit(){
+  const wrap = document.getElementById('socialLinksEdit');
+  wrap.innerHTML = '';
+  editSocialLinks.forEach((s, i) => {
+    const div = document.createElement('div');
+    div.className = 'edit-card';
+    div.innerHTML = `
+      <input type="text" data-idx="${i}" data-field="label" value="${s.label}" placeholder="Ej: Instagram">
+      <div class="row2">
+        <input type="text" data-idx="${i}" data-field="url" value="${s.url}" placeholder="https://...">
+      </div>
+      <button type="button" class="remove-link" data-remove="${i}">Eliminar link</button>
+    `;
+    wrap.appendChild(div);
+  });
+  wrap.querySelectorAll('input[data-field="label"]').forEach(inp => {
+    inp.addEventListener('input', e => { editSocialLinks[e.target.dataset.idx].label = e.target.value; });
+  });
+  wrap.querySelectorAll('input[data-field="url"]').forEach(inp => {
+    inp.addEventListener('input', e => { editSocialLinks[e.target.dataset.idx].url = e.target.value; });
+  });
+  wrap.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      editSocialLinks.splice(parseInt(e.target.dataset.remove), 1);
+      drawSocialLinksEdit();
+    });
+  });
+}
+document.getElementById('addSocialBtn').addEventListener('click', () => {
+  editSocialLinks.push({ id: '', label: '', url: '' });
+  drawSocialLinksEdit();
+});
+
+let editNews = [];
+function renderNewsEdit(){
+  editNews = JSON.parse(JSON.stringify(config.news || [])).sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+  drawNewsEdit();
+}
+function drawNewsEdit(){
+  const wrap = document.getElementById('newsEdit');
+  wrap.innerHTML = '';
+  editNews.forEach((n, i) => {
+    const div = document.createElement('div');
+    div.className = 'edit-card';
+    div.innerHTML = `
+      <input type="text" data-idx="${i}" data-field="title" value="${n.title}" placeholder="Título de la noticia">
+      <div class="row2">
+        <textarea data-idx="${i}" data-field="body" placeholder="Texto de la noticia">${n.body || ''}</textarea>
+      </div>
+      <button type="button" class="remove-link" data-remove="${i}">Eliminar noticia</button>
+    `;
+    wrap.appendChild(div);
+  });
+  wrap.querySelectorAll('input[data-field="title"]').forEach(inp => {
+    inp.addEventListener('input', e => { editNews[e.target.dataset.idx].title = e.target.value; });
+  });
+  wrap.querySelectorAll('textarea[data-field="body"]').forEach(inp => {
+    inp.addEventListener('input', e => { editNews[e.target.dataset.idx].body = e.target.value; });
+  });
+  wrap.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      editNews.splice(parseInt(e.target.dataset.remove), 1);
+      drawNewsEdit();
+    });
+  });
+}
+document.getElementById('addNewsBtn').addEventListener('click', () => {
+  editNews.push({ id: '', title: '', body: '', ts: new Date().toISOString() });
+  drawNewsEdit();
+});
+
 document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
   config.orgName = document.getElementById('setOrgName').value.trim() || DEFAULT_CONFIG.orgName;
   config.moneyGoalMonthly = parseFloat(document.getElementById('setMonthlyGoal').value) || 0;
@@ -1624,6 +1786,25 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
       label: p.label.trim(),
       address: p.address.trim(),
       notes: (p.notes || '').trim()
+    }));
+
+  config.aboutText = document.getElementById('setAboutText').value.trim();
+
+  config.socialLinks = editSocialLinks
+    .filter(s => s.label && s.label.trim() && s.url && s.url.trim())
+    .map((s, i) => ({
+      id: s.id || ('social-' + Date.now() + '-' + i),
+      label: s.label.trim(),
+      url: s.url.trim()
+    }));
+
+  config.news = editNews
+    .filter(n => n.title && n.title.trim())
+    .map((n, i) => ({
+      id: n.id || ('news-' + Date.now() + '-' + i),
+      title: n.title.trim(),
+      body: (n.body || '').trim(),
+      ts: n.ts || new Date().toISOString()
     }));
 
   const settingsErr = document.getElementById('settingsErr');
