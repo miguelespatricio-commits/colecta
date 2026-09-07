@@ -204,6 +204,30 @@
     background:none;border:none;color:var(--ink-soft);font-size:12px;
     text-decoration:underline;cursor:pointer;font-family:'Karla',sans-serif;
   }
+    #printReport{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #printReport, #printReport *{visibility:visible;}
+    #printReport{
+      display:block;position:absolute;left:0;top:0;width:100%;
+      padding:0;margin:0;
+    }
+    .overlay{display:none !important;}
+  }
+  .report-page{font-family:'Karla',sans-serif;color:#2B2015;padding:20px;}
+  .report-header{text-align:center;border-bottom:2px solid #B07F26;padding-bottom:14px;margin-bottom:20px;}
+  .report-header h1{font-family:'Lora',serif;font-size:24px;margin:0 0 6px;}
+  .report-header .sub{font-size:13px;color:#6B5F4E;}
+  .report-section{margin-bottom:22px;}
+  .report-section h2{font-family:'Lora',serif;font-size:16px;border-bottom:1px solid #D8CFB8;padding-bottom:6px;margin-bottom:10px;}
+  .report-summary-grid{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+  .report-card{border:1px solid #D8CFB8;border-radius:8px;padding:10px 14px;flex:1;min-width:140px;}
+  .report-card .label{font-size:11px;color:#6B5F4E;text-transform:uppercase;letter-spacing:.03em;}
+  .report-card .val{font-family:'Lora',serif;font-size:19px;font-weight:600;margin-top:2px;}
+  table.report-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:6px;}
+  table.report-table th, table.report-table td{border-bottom:1px solid #E7E0CC;padding:6px 4px;text-align:left;}
+  table.report-table th{color:#6B5F4E;font-weight:600;font-size:11px;text-transform:uppercase;}
+  .report-footer{text-align:center;font-size:11.5px;color:#6B5F4E;margin-top:30px;border-top:1px solid #D8CFB8;padding-top:12px;}
 </style>
 </head>
 <body>
@@ -260,6 +284,8 @@
     <button class="admin-link" id="adminLink">¿Sos administrador?</button>
   </p>
 </div>
+
+<div id="printReport"></div>
 
 <!-- Formulario donación -->
 <div class="overlay" id="formOverlay">
@@ -449,6 +475,9 @@
     <div class="modal-actions">
       <button class="btn-ghost" id="downloadLedgerBtn" style="flex:1;">Descargar CSV</button>
       <button class="btn-ghost" id="closeLedgerBtn" style="flex:1;">Cerrar</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="generateReportBtn" style="flex:1;">Generar PDF para donantes</button>
     </div>
   </div>
 </div>
@@ -902,6 +931,88 @@ function downloadLedgerCSV(){
 }
 
 document.getElementById('downloadLedgerBtn').addEventListener('click', downloadLedgerCSV);
+
+function buildReportHTML(){
+  const mIn = totalMoneyIn();
+  const mOut = totalMoneyOut();
+  const genDate = new Date().toLocaleDateString('es-AR', {day:'numeric', month:'long', year:'numeric'});
+  const start = new Date(config.periodStart);
+  const periodLabel = start.toLocaleDateString('es-AR', {month:'long', year:'numeric'});
+
+  return `
+    <div class="report-page">
+      <div class="report-header">
+        <h1>${config.orgName}</h1>
+        <div class="sub">Rendición de cuentas a donantes</div>
+        <div class="sub">Período desde ${periodLabel} · Generado el ${genDate}</div>
+      </div>
+
+      <div class="report-section">
+        <h2>Resumen de dinero</h2>
+        <div class="report-summary-grid">
+          <div class="report-card"><div class="label">Recaudado</div><div class="val">${fmtMoney(mIn)}</div></div>
+          <div class="report-card"><div class="label">Gastado</div><div class="val">${fmtMoney(mOut)}</div></div>
+          <div class="report-card"><div class="label">Saldo</div><div class="val">${fmtMoney(mIn - mOut)}</div></div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <h2>Resumen de alimentos</h2>
+        <table class="report-table">
+          <tr><th>Producto</th><th>Ingresado</th><th>Egresado</th><th>Remanente</th></tr>
+          ${config.foodGoals.map(f => `<tr><td>${f.name}</td><td>${fmtKg(totalFoodIn(f.id))}</td><td>${fmtKg(totalFoodOut(f.id))}</td><td>${fmtKg(totalFoodIn(f.id)-totalFoodOut(f.id))}</td></tr>`).join('')}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h2>Donaciones de dinero</h2>
+        <table class="report-table">
+          <tr><th>Fecha</th><th>Donante</th><th>Monto</th></tr>
+          ${donations.filter(d=>d.type==='money').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${d.donor||'Anónimo'}</td><td>${fmtMoney(d.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h2>Egresos de dinero</h2>
+        <table class="report-table">
+          <tr><th>Fecha</th><th>Descripción</th><th>Monto</th></tr>
+          ${expenses.filter(e=>e.type==='money').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(e => `<tr><td>${new Date(e.ts).toLocaleDateString('es-AR')}</td><td>${e.desc||''}</td><td>${fmtMoney(e.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h2>Donaciones de alimentos</h2>
+        <table class="report-table">
+          <tr><th>Fecha</th><th>Donante</th><th>Producto</th><th>Cantidad</th></tr>
+          ${donations.filter(d=>d.type==='food').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => {
+            const f = config.foodGoals.find(x=>x.id===d.foodId);
+            return `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${d.donor||'Anónimo'}</td><td>${f?f.name:'Categoría eliminada'}</td><td>${fmtKg(d.amount)}</td></tr>`;
+          }).join('') || '<tr><td colspan="4">Sin registros</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h2>Egresos de alimentos</h2>
+        <table class="report-table">
+          <tr><th>Fecha</th><th>Descripción</th><th>Producto</th><th>Cantidad</th></tr>
+          ${expenses.filter(e=>e.type==='food').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(e => {
+            const f = config.foodGoals.find(x=>x.id===e.foodId);
+            return `<tr><td>${new Date(e.ts).toLocaleDateString('es-AR')}</td><td>${e.desc||''}</td><td>${f?f.name:'Categoría eliminada'}</td><td>${fmtKg(e.amount)}</td></tr>`;
+          }).join('') || '<tr><td colspan="4">Sin registros</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-footer">Gracias a cada persona que colabora con ${config.orgName}.</div>
+    </div>
+  `;
+}
+
+function generateDonorReport(){
+  document.getElementById('printReport').innerHTML = buildReportHTML();
+  window.print();
+}
+
+document.getElementById('generateReportBtn').addEventListener('click', generateDonorReport);
 
 document.getElementById('ledgerTabMoney').addEventListener('click', () => {
   document.getElementById('ledgerTabMoney').classList.add('active');
