@@ -291,8 +291,12 @@
 <div class="overlay" id="formOverlay">
   <div class="modal">
     <h2>Cargar una donación</h2>
-    <label for="donorName">Tu nombre</label>
-    <input type="text" id="donorName" placeholder="Ej: María">
+    <label for="donorName">Nombre y apellido</label>
+    <input type="text" id="donorName" placeholder="Ej: María Gómez">
+    <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;cursor:pointer;">
+      <input type="checkbox" id="donationPublic" style="width:auto;margin-top:3px;">
+      <span style="font-size:13px;color:var(--ink-soft);display:block;">Hacer pública mi donación (se va a mostrar mi nombre en la lista para todos). Si no marcás esto, tu donación aparece como "Anónimo" para el resto, pero el administrador siempre puede ver quién donó.</span>
+    </label>
 
     <label>Tipo de donación</label>
     <div class="seg">
@@ -387,6 +391,10 @@
     <h2>Editar donación</h2>
     <label for="editDonorName">Nombre del donante</label>
     <input type="text" id="editDonorName" placeholder="Anónimo">
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer;">
+      <input type="checkbox" id="editDonationPublic" style="width:auto;">
+      <span style="font-size:13px;color:var(--ink-soft);">Donación pública (se muestra el nombre a todos)</span>
+    </label>
 
     <div id="editMoneyFields">
       <label for="editMoneyAmount">Monto ($)</label>
@@ -727,10 +735,11 @@ function render(){
         const f = config.foodGoals.find(x=>x.id===d.foodId);
         detail = fmtKg(d.amount) + ' · ' + (f ? f.name : 'alimento (categoría eliminada)');
       }
+      const displayName = (isAdmin || d.isPublic) ? (d.donor || 'Anónimo') : 'Anónimo';
       if(isAdmin && pendingDeleteId === d.id){
         row.innerHTML = `
           <div>
-            <div class="feed-name">${d.donor || 'Anónimo'}</div>
+            <div class="feed-name">${displayName}</div>
             <div class="feed-detail">¿Eliminar esta donación?</div>
           </div>
           <div style="display:flex;gap:8px;">
@@ -741,7 +750,7 @@ function render(){
       } else {
         row.innerHTML = `
           <div>
-            <div class="feed-name">${d.donor || 'Anónimo'}</div>
+            <div class="feed-name">${displayName}</div>
             <div class="feed-detail">${detail}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
@@ -826,19 +835,21 @@ document.getElementById('foodCategory').addEventListener('change', refreshSubmit
 document.getElementById('submitFormBtn').addEventListener('click', async () => {
   const formErr = document.getElementById('formErr');
   formErr.classList.remove('show');
-  const donor = document.getElementById('donorName').value.trim() || 'Anónimo';
+  const donor = document.getElementById('donorName').value.trim();
+  if(!donor){ formErr.textContent = 'Ingresá tu nombre y apellido.'; formErr.classList.add('show'); return; }
+  const isPublic = document.getElementById('donationPublic').checked;
   const isMoney = document.getElementById('tabMoney').classList.contains('active');
   let entry;
   if(isMoney){
     const amt = parseFloat(document.getElementById('moneyAmount').value);
     if(!amt || amt <= 0){ formErr.textContent = 'Ingresá un monto válido.'; formErr.classList.add('show'); return; }
-    entry = { id: Date.now()+'-'+Math.random(), donor, type:'money', amount: amt, ts: new Date().toISOString() };
+    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'money', amount: amt, ts: new Date().toISOString() };
   } else {
     const amt = parseFloat(document.getElementById('foodAmount').value);
     const foodId = document.getElementById('foodCategory').value;
     if(!foodId){ formErr.textContent = 'No hay categorías de alimentos disponibles.'; formErr.classList.add('show'); return; }
     if(!amt || amt <= 0){ formErr.textContent = 'Ingresá una cantidad válida.'; formErr.classList.add('show'); return; }
-    entry = { id: Date.now()+'-'+Math.random(), donor, type:'food', foodId, amount: amt, ts: new Date().toISOString() };
+    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'food', foodId, amount: amt, ts: new Date().toISOString() };
   }
   const btn = document.getElementById('submitFormBtn');
   btn.disabled = true;
@@ -848,6 +859,7 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     document.getElementById('donorName').value = '';
     document.getElementById('moneyAmount').value = '';
     document.getElementById('foodAmount').value = '';
+    document.getElementById('donationPublic').checked = false;
     formOverlay.classList.remove('show');
     render();
   }catch(e){
@@ -1241,6 +1253,7 @@ function openEditDonationModal(id){
   editingDonationId = id;
   document.getElementById('editDonationErr').classList.remove('show');
   document.getElementById('editDonorName').value = d.donor || '';
+  document.getElementById('editDonationPublic').checked = !!d.isPublic;
 
   const moneyFields = document.getElementById('editMoneyFields');
   const foodFields = document.getElementById('editFoodFields');
@@ -1288,6 +1301,7 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     }
     donations[idx].donor = donor;
     donations[idx].amount = amt;
+    donations[idx].isPublic = document.getElementById('editDonationPublic').checked;
   } else {
     const amt = parseFloat(document.getElementById('editFoodAmount').value);
     const foodId = document.getElementById('editFoodCategory').value;
@@ -1299,6 +1313,7 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     donations[idx].donor = donor;
     donations[idx].foodId = foodId;
     donations[idx].amount = amt;
+    donations[idx].isPublic = document.getElementById('editDonationPublic').checked;
   }
 
   const saveBtn = document.getElementById('saveEditDonationBtn');
