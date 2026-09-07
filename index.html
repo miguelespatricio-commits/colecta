@@ -613,6 +613,7 @@ function render(){
   document.getElementById('orgSub').textContent = 'Período desde ' + monthLabel;
 
   document.getElementById('gearBtn').classList.toggle('show', isAdmin);
+  document.getElementById('ledgerBtn').classList.toggle('show', isAdmin);
 
   const mNow = moneyTotal();
   const mGoal = config.moneyGoalMonthly;
