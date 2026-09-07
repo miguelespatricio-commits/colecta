@@ -529,11 +529,11 @@
     </div>
 
     <div class="modal-actions">
-      <button class="btn-ghost" id="downloadLedgerBtn" style="flex:1;">Descargar CSV</button>
+      <button class="btn-ghost" id="generateInternalReportBtn" style="flex:1;">PDF completo (interno)</button>
       <button class="btn-ghost" id="closeLedgerBtn" style="flex:1;">Cerrar</button>
     </div>
     <div class="modal-actions">
-      <button class="btn-ghost" id="generateReportBtn" style="flex:1;">Generar PDF para donantes</button>
+      <button class="btn-ghost" id="generateReportBtn" style="flex:1;">PDF para donantes (público)</button>
     </div>
   </div>
 </div>
@@ -817,16 +817,12 @@ function render(){
     aboutSection.style.display = 'block';
     aboutBox.style.display = hasAbout ? 'block' : 'none';
     aboutBox.innerHTML = linkify(config.aboutText || '');
-    socialLinksList.innerHTML = '';
-    (config.socialLinks || []).forEach(s => {
-      const a = document.createElement('a');
-      a.href = s.url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = s.label;
-      a.style.cssText = 'display:inline-block;margin:4px 8px 4px 0;padding:8px 14px;background:var(--paper);border:1px solid var(--line);border-radius:20px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;';
-      socialLinksList.appendChild(a);
-    });
+    socialLinksList.innerHTML = (config.socialLinks || []).map(s => `
+      <div style="font-size:13.5px;margin-top:4px;color:var(--ink-soft);">
+        <strong style="color:var(--ink);">${s.label}:</strong>
+        <a href="${s.url}" target="_blank" rel="noopener noreferrer" style="color:var(--gold);text-decoration:underline;word-break:break-all;">${s.url}</a>
+      </div>
+    `).join('');
   } else {
     aboutSection.style.display = 'none';
   }
@@ -1070,20 +1066,20 @@ function downloadLedgerCSV(){
   URL.revokeObjectURL(url);
 }
 
-document.getElementById('downloadLedgerBtn').addEventListener('click', downloadLedgerCSV);
 
-function buildReportHTML(){
+function buildReportHTML(anonymize){
   const mIn = totalMoneyIn();
   const mOut = totalMoneyOut();
   const genDate = new Date().toLocaleDateString('es-AR', {day:'numeric', month:'long', year:'numeric'});
   const start = new Date(config.periodStart);
   const periodLabel = start.toLocaleDateString('es-AR', {month:'long', year:'numeric'});
+  const nameFor = (d) => (!anonymize || d.isPublic) ? (d.donor || 'Anónimo') : 'Anónimo';
 
   return `
     <div class="report-page">
       <div class="report-header">
         <h1>${config.orgName}</h1>
-        <div class="sub">Rendición de cuentas a donantes</div>
+        <div class="sub">${anonymize ? 'Rendición de cuentas a donantes' : 'Reporte interno completo (con nombres)'}</div>
         <div class="sub">Período desde ${periodLabel} · Generado el ${genDate}</div>
       </div>
 
@@ -1108,7 +1104,7 @@ function buildReportHTML(){
         <h2>Donaciones de dinero</h2>
         <table class="report-table">
           <tr><th>Fecha</th><th>Donante</th><th>Monto</th></tr>
-          ${donations.filter(d=>d.type==='money').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${d.isPublic ? (d.donor||'Anónimo') : 'Anónimo'}</td><td>${fmtMoney(d.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}   
+          ${donations.filter(d=>d.type==='money').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${nameFor(d)}</td><td>${fmtMoney(d.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}
         </table>
       </div>
 
@@ -1126,7 +1122,7 @@ function buildReportHTML(){
           <tr><th>Fecha</th><th>Donante</th><th>Producto</th><th>Cantidad</th></tr>
           ${donations.filter(d=>d.type==='food').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => {
             const f = config.foodGoals.find(x=>x.id===d.foodId);
-            return `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${d.isPublic ? (d.donor||'Anónimo') : 'Anónimo'}</td><td>${f?f.name:'Categoría eliminada'}</td><td>${fmtKg(d.amount)}</td></tr>`;
+            return `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${nameFor(d)}</td><td>${f?f.name:'Categoría eliminada'}</td><td>${fmtKg(d.amount)}</td></tr>`;
           }).join('') || '<tr><td colspan="4">Sin registros</td></tr>'}
         </table>
       </div>
@@ -1142,17 +1138,22 @@ function buildReportHTML(){
         </table>
       </div>
 
-      <div class="report-footer">Gracias a cada persona que colabora con ${config.orgName}.</div>
+      <div class="report-footer">${anonymize ? ('Gracias a cada persona que colabora con ' + config.orgName + '.') : 'Documento de uso interno — no compartir con donantes.'}</div>
     </div>
   `;
 }
 
 function generateDonorReport(){
-  document.getElementById('printReport').innerHTML = buildReportHTML();
+  document.getElementById('printReport').innerHTML = buildReportHTML(true);
+  window.print();
+}
+function generateInternalReport(){
+  document.getElementById('printReport').innerHTML = buildReportHTML(false);
   window.print();
 }
 
 document.getElementById('generateReportBtn').addEventListener('click', generateDonorReport);
+document.getElementById('generateInternalReportBtn').addEventListener('click', generateInternalReport);
 
 document.getElementById('ledgerTabMoney').addEventListener('click', () => {
   document.getElementById('ledgerTabMoney').classList.add('active');
