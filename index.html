@@ -1587,6 +1587,20 @@ function init(){
       showGlobalBanner('No se pudo conectar con Firestore. Revisá las reglas de seguridad y la configuración del proyecto.');
     });
   });
+
+  // Egresos: crea el documento si no existe, y escucha cambios en tiempo real
+  EXPENSES_DOC().get().then(doc => {
+    if(!doc.exists){
+      return EXPENSES_DOC().set({ list: [] });
+    }
+  }).then(() => {
+    EXPENSES_DOC().onSnapshot(doc => {
+      expenses = (doc.exists && Array.isArray(doc.data().list)) ? doc.data().list : [];
+      if(ledgerOverlay.classList.contains('show')) renderLedger();
+    }, err => {
+      showGlobalBanner('No se pudo conectar con Firestore. Revisá las reglas de seguridad y la configuración del proyecto.');
+    });
+  });
 }
 init();
 </script>
