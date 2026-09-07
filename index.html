@@ -216,7 +216,10 @@
       <p class="org-name" id="orgName">Cargando…</p>
       <p class="org-sub" id="orgSub"></p>
     </div>
-    <button class="gear" id="gearBtn" aria-label="Configuración">⚙</button>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <button class="gear" id="ledgerBtn" aria-label="Ingresos y egresos" title="Ingresos y egresos">&#128179;</button>
+      <button class="gear" id="gearBtn" aria-label="Configuración">⚙</button>
+    </div>
   </header>
 
   <section class="block">
@@ -379,6 +382,75 @@
     </div>
   </div>
 </div>
+<!-- Ingresos y egresos (admin) -->
+<div class="overlay" id="ledgerOverlay">
+  <div class="modal">
+    <h2>Ingresos y egresos</h2>
+
+    <div class="seg">
+      <button type="button" id="ledgerTabMoney" class="active">Dinero</button>
+      <button type="button" id="ledgerTabFood">Alimentos</button>
+    </div>
+
+    <div id="ledgerMoneyView">
+      <div class="money-card" style="margin-top:16px;">
+        <div class="money-top">
+          <span class="num" id="ledgerMoneyIn">$0</span>
+          <span class="goal-total">ingresado (histórico)</span>
+        </div>
+        <div class="week-line" style="border-top:none;padding-top:0;">
+          <span>Egresado: <strong id="ledgerMoneyOut">$0</strong></span>
+        </div>
+        <div class="week-line">
+          <span>Saldo disponible: <strong id="ledgerMoneyBalance">$0</strong></span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <label style="margin-top:0;">Cargar un egreso de dinero</label>
+        <label for="ledgerMoneyOutDesc">Descripción</label>
+        <input type="text" id="ledgerMoneyOutDesc" placeholder="Ej: Compra de verdura en el mercado">
+        <label for="ledgerMoneyOutAmount">Monto ($)</label>
+        <input type="number" id="ledgerMoneyOutAmount" min="1">
+        <p class="form-err" id="ledgerMoneyErr"></p>
+        <button type="button" class="btn-solid" id="addMoneyExpenseBtn" style="width:100%;margin-top:10px;">Registrar egreso</button>
+      </div>
+
+      <div class="settings-section">
+        <label style="margin-top:0;">Movimientos de dinero</label>
+        <div class="feed" id="ledgerMoneyFeed"></div>
+      </div>
+    </div>
+
+    <div id="ledgerFoodView" style="display:none;">
+      <div class="settings-section" style="margin-top:16px;border-top:none;padding-top:0;">
+        <label style="margin-top:0;">Saldo de alimentos por categoría</label>
+        <div id="ledgerFoodBalances"></div>
+      </div>
+
+      <div class="settings-section">
+        <label style="margin-top:0;">Cargar un egreso de alimento</label>
+        <label for="ledgerFoodOutCategory">Producto</label>
+        <select id="ledgerFoodOutCategory"></select>
+        <label for="ledgerFoodOutDesc">Descripción (opcional)</label>
+        <input type="text" id="ledgerFoodOutDesc" placeholder="Ej: Usado para el guiso del sábado">
+        <label for="ledgerFoodOutAmount">Cantidad (kg)</label>
+        <input type="number" id="ledgerFoodOutAmount" min="0.1" step="0.1">
+        <p class="form-err" id="ledgerFoodErr"></p>
+        <button type="button" class="btn-solid" id="addFoodExpenseBtn" style="width:100%;margin-top:10px;">Registrar egreso</button>
+      </div>
+
+      <div class="settings-section">
+        <label style="margin-top:0;">Movimientos de alimentos</label>
+        <div class="feed" id="ledgerFoodFeed"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" id="closeLedgerBtn" style="flex:1;">Cerrar</button>
+    </div>
+  </div>
+</div>
 <!--
   ============================================================
   CONFIGURACIÓN DE FIREBASE — completá esto con tus datos
@@ -419,6 +491,7 @@ if(FIREBASE_CONFIGURED){
 
 const CONFIG_DOC = () => db.collection('colecta').doc('config');
 const DONATIONS_DOC = () => db.collection('colecta').doc('donations');
+const EXPENSES_DOC = () => db.collection('colecta').doc('expenses');
 const ADMIN_FLAG_KEY = 'colecta_isAdmin_local';
 
 const DEFAULT_CONFIG = {
@@ -446,6 +519,7 @@ const PALETTE = [
 
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 let donations = [];
+let expenses = [];
 let isAdmin = false;
 let pendingDeleteId = null;
 
@@ -506,6 +580,10 @@ async function saveConfig(){
 async function saveDonations(){
   if(!db) { render(); return; }
   await DONATIONS_DOC().set({ list: donations });
+}
+async function saveExpenses(){
+  if(!db) { renderLedger(); return; }
+  await EXPENSES_DOC().set({ list: expenses });
 }
 function loadAdminFlag(){
   try{ isAdmin = localStorage.getItem(ADMIN_FLAG_KEY) === 'true'; }catch(e){ isAdmin = false; }
@@ -745,6 +823,209 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     donations.pop();
     formErr.textContent = 'No se pudo guardar la donación. Revisá tu conexión e intentá de nuevo.';
     formErr.classList.add('show');
+  }finally{
+    btn.disabled = false;
+  }
+});
+// --- Ingresos y egresos (admin) ---
+const ledgerOverlay = document.getElementById('ledgerOverlay');
+
+document.getElementById('ledgerBtn').addEventListener('click', () => {
+  if(!isAdmin){
+    openAdminModal();
+    return;
+  }
+  openLedgerModal();
+});
+
+function openLedgerModal(){
+  populateLedgerFoodSelect();
+  renderLedger();
+  ledgerOverlay.classList.add('show');
+}
+document.getElementById('closeLedgerBtn').addEventListener('click', () => ledgerOverlay.classList.remove('show'));
+
+document.getElementById('ledgerTabMoney').addEventListener('click', () => {
+  document.getElementById('ledgerTabMoney').classList.add('active');
+  document.getElementById('ledgerTabFood').classList.remove('active');
+  document.getElementById('ledgerMoneyView').style.display = 'block';
+  document.getElementById('ledgerFoodView').style.display = 'none';
+});
+document.getElementById('ledgerTabFood').addEventListener('click', () => {
+  document.getElementById('ledgerTabFood').classList.add('active');
+  document.getElementById('ledgerTabMoney').classList.remove('active');
+  document.getElementById('ledgerFoodView').style.display = 'block';
+  document.getElementById('ledgerMoneyView').style.display = 'none';
+});
+
+function populateLedgerFoodSelect(){
+  const sel = document.getElementById('ledgerFoodOutCategory');
+  const prevVal = sel.value;
+  sel.innerHTML = '';
+  config.foodGoals.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f.id;
+    opt.textContent = f.name;
+    sel.appendChild(opt);
+  });
+  if(prevVal) sel.value = prevVal;
+}
+
+function totalMoneyIn(){
+  return donations.filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0);
+}
+function totalMoneyOut(){
+  return expenses.filter(e => e.type === 'money').reduce((s,e)=>s+e.amount,0);
+}
+function totalFoodIn(foodId){
+  return donations.filter(d => d.type === 'food' && d.foodId === foodId).reduce((s,d)=>s+d.amount,0);
+}
+function totalFoodOut(foodId){
+  return expenses.filter(e => e.type === 'food' && e.foodId === foodId).reduce((s,e)=>s+e.amount,0);
+}
+
+function renderLedger(){
+  const mIn = totalMoneyIn();
+  const mOut = totalMoneyOut();
+  document.getElementById('ledgerMoneyIn').textContent = fmtMoney(mIn);
+  document.getElementById('ledgerMoneyOut').textContent = fmtMoney(mOut);
+  document.getElementById('ledgerMoneyBalance').textContent = fmtMoney(mIn - mOut);
+
+  const balancesWrap = document.getElementById('ledgerFoodBalances');
+  balancesWrap.innerHTML = '';
+  if(config.foodGoals.length === 0){
+    balancesWrap.innerHTML = '<div class="feed-empty">No hay categorías de alimentos configuradas.</div>';
+  }
+  config.foodGoals.forEach(f => {
+    const fIn = totalFoodIn(f.id);
+    const fOut = totalFoodOut(f.id);
+    const row = document.createElement('div');
+    row.className = 'food-row';
+    row.innerHTML = `
+      <div class="food-row-top">
+        <span class="name">${f.name}</span>
+        <span class="amt">Ingresado: ${fmtKg(fIn)} · Egresado: ${fmtKg(fOut)}</span>
+      </div>
+      <div style="font-size:14px;font-weight:600;color:var(--done);">Remanente: ${fmtKg(fIn - fOut)}</div>
+    `;
+    balancesWrap.appendChild(row);
+  });
+
+  const moneyFeed = document.getElementById('ledgerMoneyFeed');
+  const moneyMovs = [
+    ...donations.filter(d=>d.type==='money').map(d => ({ ts: d.ts, label: (d.donor || 'Anónimo') + ' · ingreso', amount: d.amount, sign: 1 })),
+    ...expenses.filter(e=>e.type==='money').map(e => ({ ts: e.ts, label: (e.desc || 'Egreso') + ' · egreso', amount: e.amount, sign: -1, id: e.id }))
+  ].sort((a,b)=> new Date(b.ts) - new Date(a.ts)).slice(0,20);
+  moneyFeed.innerHTML = '';
+  if(moneyMovs.length === 0){
+    moneyFeed.innerHTML = '<div class="feed-empty">Todavía no hay movimientos.</div>';
+  } else {
+    moneyMovs.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'feed-row';
+      row.innerHTML = `
+        <div>
+          <div class="feed-name">${m.label}</div>
+          <div class="feed-detail">${m.sign > 0 ? '+ ' : '- '}${fmtMoney(m.amount)}</div>
+        </div>
+        <div class="feed-when">${relTime(m.ts)}</div>
+      `;
+      moneyFeed.appendChild(row);
+    });
+  }
+
+  const foodFeed = document.getElementById('ledgerFoodFeed');
+  const foodMovs = [
+    ...donations.filter(d=>d.type==='food').map(d => {
+      const f = config.foodGoals.find(x=>x.id===d.foodId);
+      return { ts: d.ts, label: (d.donor || 'Anónimo') + ' · ingreso · ' + (f ? f.name : 'categoría eliminada'), amount: d.amount, sign: 1 };
+    }),
+    ...expenses.filter(e=>e.type==='food').map(e => {
+      const f = config.foodGoals.find(x=>x.id===e.foodId);
+      return { ts: e.ts, label: (e.desc || 'Egreso') + ' · egreso · ' + (f ? f.name : 'categoría eliminada'), amount: e.amount, sign: -1 };
+    })
+  ].sort((a,b)=> new Date(b.ts) - new Date(a.ts)).slice(0,20);
+  foodFeed.innerHTML = '';
+  if(foodMovs.length === 0){
+    foodFeed.innerHTML = '<div class="feed-empty">Todavía no hay movimientos.</div>';
+  } else {
+    foodMovs.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'feed-row';
+      row.innerHTML = `
+        <div>
+          <div class="feed-name">${m.label}</div>
+          <div class="feed-detail">${m.sign > 0 ? '+ ' : '- '}${fmtKg(m.amount)}</div>
+        </div>
+        <div class="feed-when">${relTime(m.ts)}</div>
+      `;
+      foodFeed.appendChild(row);
+    });
+  }
+}
+
+document.getElementById('addMoneyExpenseBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('ledgerMoneyErr');
+  errEl.classList.remove('show');
+  const desc = document.getElementById('ledgerMoneyOutDesc').value.trim();
+  const amt = parseFloat(document.getElementById('ledgerMoneyOutAmount').value);
+  if(!desc){
+    errEl.textContent = 'Ingresá una descripción del gasto.';
+    errEl.classList.add('show');
+    return;
+  }
+  if(!amt || amt <= 0){
+    errEl.textContent = 'Ingresá un monto válido.';
+    errEl.classList.add('show');
+    return;
+  }
+  const entry = { id: Date.now()+'-'+Math.random(), type:'money', desc, amount: amt, ts: new Date().toISOString() };
+  const btn = document.getElementById('addMoneyExpenseBtn');
+  btn.disabled = true;
+  try{
+    expenses.push(entry);
+    await saveExpenses();
+    document.getElementById('ledgerMoneyOutDesc').value = '';
+    document.getElementById('ledgerMoneyOutAmount').value = '';
+    renderLedger();
+  }catch(e){
+    expenses.pop();
+    errEl.textContent = 'No se pudo guardar el egreso. Revisá tu conexión e intentá de nuevo.';
+    errEl.classList.add('show');
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('addFoodExpenseBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('ledgerFoodErr');
+  errEl.classList.remove('show');
+  const foodId = document.getElementById('ledgerFoodOutCategory').value;
+  const desc = document.getElementById('ledgerFoodOutDesc').value.trim();
+  const amt = parseFloat(document.getElementById('ledgerFoodOutAmount').value);
+  if(!foodId){
+    errEl.textContent = 'No hay categorías de alimentos disponibles.';
+    errEl.classList.add('show');
+    return;
+  }
+  if(!amt || amt <= 0){
+    errEl.textContent = 'Ingresá una cantidad válida.';
+    errEl.classList.add('show');
+    return;
+  }
+  const entry = { id: Date.now()+'-'+Math.random(), type:'food', foodId, desc, amount: amt, ts: new Date().toISOString() };
+  const btn = document.getElementById('addFoodExpenseBtn');
+  btn.disabled = true;
+  try{
+    expenses.push(entry);
+    await saveExpenses();
+    document.getElementById('ledgerFoodOutDesc').value = '';
+    document.getElementById('ledgerFoodOutAmount').value = '';
+    renderLedger();
+  }catch(e){
+    expenses.pop();
+    errEl.textContent = 'No se pudo guardar el egreso. Revisá tu conexión e intentá de nuevo.';
+    errEl.classList.add('show');
   }finally{
     btn.disabled = false;
   }
