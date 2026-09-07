@@ -7,17 +7,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg: #F1ECDD;
-    --paper: #FBF8F0;
-    --ink: #2B2015;
-    --ink-soft: #6B5F4E;
-    --line: #D8CFB8;
-    --gold: #B07F26;
-    --gold-soft: #EADFC0;
-    --done: #3F6B5E;
-    --done-soft: #DCE9E3;
-    --err: #A2432E;
+    :root{
+    --bg: #F7F3E8;
+    --paper: #FFFFFF;
+    --ink: #4A3826;
+    --ink-soft: #8A7A63;
+    --line: #E6DFC9;
+    --gold: #C89B4A;
+    --gold-soft: #F3E7CC;
+    --done: #5C9082;
+    --done-soft: #E4F0EB;
+    --err: #C15B42;
   }
   *{box-sizing:border-box;}
   body{
@@ -211,6 +211,10 @@
     background:none;border:none;color:var(--ink-soft);font-size:12px;
     text-decoration:underline;cursor:pointer;font-family:'Karla',sans-serif;
   }
+    .about-text{
+    font-size:14px;color:var(--ink-soft);line-height:1.5;margin:0 0 8px;
+  }
+  .about-text a{color:var(--gold);font-weight:600;text-decoration:underline;}
     #printReport{display:none;}
   @media print{
     body *{visibility:hidden;}
@@ -253,6 +257,11 @@
     </div>
     </header>
 
+  <section class="block" id="aboutSection" style="display:none;margin-top:-10px;">
+    <p class="about-text" id="aboutBox"></p>
+    <div id="socialLinksList"></div>
+  </section>
+
   <section class="block" id="newsSection" style="display:none;">
     <div id="newsList"></div>
   </section>
@@ -283,12 +292,6 @@
     <div id="dropoffList"></div>
   </section>
 
-  <section class="block" id="aboutSection" style="display:none;">
-    <p class="block-title">Sobre nosotros</p>
-    <div class="food-row" id="aboutBox" style="white-space:pre-wrap;"></div>
-    <div id="socialLinksList" style="margin-top:10px;"></div>
-  </section>
-
   <button class="cta" id="openFormBtn">Cargar una donación</button>
 
   <section class="block" style="margin-top:30px;">
@@ -312,7 +315,7 @@
     <input type="text" id="donorName" placeholder="Ej: María Gómez">
     <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;cursor:pointer;">
       <input type="checkbox" id="donationPublic" style="width:auto;margin-top:3px;">
-      <span style="font-size:13px;color:var(--ink-soft);display:block;">Hacer pública mi donación (se va a mostrar mi nombre en la lista para todos). Si no marcás esto, tu donación aparece como "Anónimo" para el resto, pero el administrador siempre puede ver quién donó.</span>
+      <span style="font-size:13px;color:var(--ink-soft);display:block;">Hacer pública mi donación (se va a mostrar mi nombre en la lista para todos). Si no marcás esto, tu donación aparece como "Anónimo" para el resto.</span>
     </label>
 
     <label>Tipo de donación</label>
@@ -322,6 +325,7 @@
     </div>
 
     <div id="moneyFields">
+      <div id="bankInfoBox" style="display:none;background:var(--gold-soft);border:1px solid var(--gold);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px;line-height:1.5;"></div>
       <label for="moneyAmount">Monto ($)</label>
       <input type="number" id="moneyAmount" placeholder="Ej: 5000" min="1">
       <p class="locked" id="moneyLocked" style="display:none;">La meta de dinero de este período ya se alcanzó.</p>
@@ -371,6 +375,16 @@
 
     <label for="setTransferInfo">Datos para transferencia (alias, CBU, etc. — opcional)</label>
     <textarea id="setTransferInfo" placeholder="Ej: Alias: comedor.sgo"></textarea>
+
+    <div class="settings-section">
+      <label style="margin-top:0;">Datos bancarios (se muestran al cargar una donación en dinero)</label>
+      <label for="setBankName">Nombre y apellido del titular</label>
+      <input type="text" id="setBankName" placeholder="Ej: Juan Pérez">
+      <label for="setBankAlias">Alias</label>
+      <input type="text" id="setBankAlias" placeholder="Ej: comedor.ebenezer">
+      <label for="setBankEntity">Banco</label>
+      <input type="text" id="setBankEntity" placeholder="Ej: Banco Nación">
+    </div>
 
     <div class="settings-section">
       <label style="margin-top:0;">Categorías de alimentos</label>
@@ -574,6 +588,9 @@ const DEFAULT_CONFIG = {
   adminPin: '',
   adminBirthdate: '',
   transferInfo: '',
+  bankName: '',
+  bankAlias: '',
+  bankEntity: '',
   foodGoals: [
     { id: 'secos', name: 'Arroz, fideos y verdura', goal: 10 },
     { id: 'carne', name: 'Carne', goal: 6 }
@@ -617,6 +634,22 @@ function relTime(iso){
   if(hrs < 24) return 'hace ' + hrs + ' h';
   const days = Math.round(hrs/24);
   return 'hace ' + days + ' d';
+}
+function linkify(text){
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const withLinks = escaped.replace(/((https?:\/\/|www\.)[^\s<]+)/g, (match) => {
+    const href = match.startsWith('http') ? match : 'https://' + match;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer">${match}</a>`;
+  });
+  return withLinks.replace(/\n/g, '<br>');
+}
+function linkify(text){
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const withLinks = escaped.replace(/((https?:\/\/|www\.)[^\s<]+)/g, (match) => {
+    const href = match.startsWith('http') ? match : 'https://' + match;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer">${match}</a>`;
+  });
+  return withLinks.replace(/\n/g, '<br>');
 }
 function slugify(s){
   return (s || 'item').toLowerCase()
@@ -783,7 +816,7 @@ function render(){
   if(hasAbout || hasSocial){
     aboutSection.style.display = 'block';
     aboutBox.style.display = hasAbout ? 'block' : 'none';
-    aboutBox.textContent = config.aboutText || '';
+    aboutBox.innerHTML = linkify(config.aboutText || '');
     socialLinksList.innerHTML = '';
     (config.socialLinks || []).forEach(s => {
       const a = document.createElement('a');
@@ -863,7 +896,23 @@ function populateFoodSelect(){
   if(prevVal) sel.value = prevVal;
 }
 
+function updateBankInfoBox(){
+  const box = document.getElementById('bankInfoBox');
+  if(!box) return;
+  const hasBank = config.bankName || config.bankAlias || config.bankEntity;
+  if(hasBank){
+    box.style.display = 'block';
+    box.innerHTML = '<strong>Datos para transferir:</strong><br>' +
+      (config.bankName ? 'Titular: ' + config.bankName + '<br>' : '') +
+      (config.bankAlias ? 'Alias: ' + config.bankAlias + '<br>' : '') +
+      (config.bankEntity ? 'Banco: ' + config.bankEntity : '');
+  } else {
+    box.style.display = 'none';
+  }
+}
+
 function updateFormLocks(){
+  updateBankInfoBox();
   const moneyDone = config.moneyGoalMonthly > 0 && moneyTotal() >= config.moneyGoalMonthly;
   document.getElementById('moneyLocked').style.display = moneyDone ? 'block' : 'none';
   document.getElementById('moneyAmount').disabled = moneyDone;
@@ -1598,6 +1647,9 @@ function openSettingsModal(){
   document.getElementById('setMonthlyGoal').value = config.moneyGoalMonthly;
   document.getElementById('setWeeklyGoal').value = config.moneyGoalWeekly;
   document.getElementById('setTransferInfo').value = config.transferInfo || '';
+  document.getElementById('setBankName').value = config.bankName || '';
+  document.getElementById('setBankAlias').value = config.bankAlias || '';
+  document.getElementById('setBankEntity').value = config.bankEntity || '';
   document.getElementById('setAboutText').value = config.aboutText || '';
   renderFoodGoalsEdit();
   renderDropoffEdit();
@@ -1764,6 +1816,9 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
   config.moneyGoalMonthly = parseFloat(document.getElementById('setMonthlyGoal').value) || 0;
   config.moneyGoalWeekly = parseFloat(document.getElementById('setWeeklyGoal').value) || 0;
   config.transferInfo = document.getElementById('setTransferInfo').value.trim();
+  config.bankName = document.getElementById('setBankName').value.trim();
+  config.bankAlias = document.getElementById('setBankAlias').value.trim();
+  config.bankEntity = document.getElementById('setBankEntity').value.trim();
 
   const existingIds = [];
   config.foodGoals = editFoodGoals
