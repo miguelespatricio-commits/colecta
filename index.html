@@ -474,7 +474,26 @@
   <div class="modal">
     <h2>Ingresos y egresos</h2>
 
-    <div class="seg">
+    <label for="ledgerPeriodFilter" style="margin-top:0;">Período a mostrar</label>
+    <select id="ledgerPeriodFilter">
+      <option value="all" selected>Todo el historial</option>
+      <option value="current">Período actual</option>
+      <option value="custom">Rango de fechas personalizado</option>
+    </select>
+    <div id="ledgerCustomRange" style="display:none;">
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="flex:1;">
+          <label for="ledgerFromDate" style="margin-top:0;">Desde</label>
+          <input type="date" id="ledgerFromDate">
+        </div>
+        <div style="flex:1;">
+          <label for="ledgerToDate" style="margin-top:0;">Hasta</label>
+          <input type="date" id="ledgerToDate">
+        </div>
+      </div>
+    </div>
+
+    <div class="seg" style="margin-top:16px;">
       <button type="button" id="ledgerTabMoney" class="active">Dinero</button>
       <button type="button" id="ledgerTabFood">Alimentos</button>
     </div>
@@ -1031,10 +1050,70 @@ document.getElementById('ledgerBtn').addEventListener('click', () => {
   openLedgerModal();
 });
 
+let ledgerFilterMode = 'all'; // 'all' | 'current' | 'custom'
+
 function openLedgerModal(){
   populateLedgerFoodSelect();
+  document.getElementById('ledgerPeriodFilter').value = ledgerFilterMode;
+  document.getElementById('ledgerCustomRange').style.display = ledgerFilterMode === 'custom' ? 'block' : 'none';
   renderLedger();
   ledgerOverlay.classList.add('show');
+}
+
+document.getElementById('ledgerPeriodFilter').addEventListener('change', (e) => {
+  ledgerFilterMode = e.target.value;
+  document.getElementById('ledgerCustomRange').style.display = ledgerFilterMode === 'custom' ? 'block' : 'none';
+  renderLedger();
+});
+document.getElementById('ledgerFromDate').addEventListener('change', renderLedger);
+document.getElementById('ledgerToDate').addEventListener('change', renderLedger);
+
+function getLedgerDonations(){
+  if(ledgerFilterMode === 'current') return periodDonations();
+  if(ledgerFilterMode === 'custom'){
+    const from = document.getElementById('ledgerFromDate').value;
+    const to = document.getElementById('ledgerToDate').value;
+    return donations.filter(d => {
+      const t = new Date(d.ts).getTime();
+      if(from && t < new Date(from+'T00:00:00').getTime()) return false;
+      if(to && t > new Date(to+'T23:59:59').getTime()) return false;
+      return true;
+    });
+  }
+  return donations;
+}
+function getLedgerExpenses(){
+  if(ledgerFilterMode === 'current'){
+    const start = new Date(config.periodStart).getTime();
+    return expenses.filter(e => new Date(e.ts).getTime() >= start);
+  }
+  if(ledgerFilterMode === 'custom'){
+    const from = document.getElementById('ledgerFromDate').value;
+    const to = document.getElementById('ledgerToDate').value;
+    return expenses.filter(e => {
+      const t = new Date(e.ts).getTime();
+      if(from && t < new Date(from+'T00:00:00').getTime()) return false;
+      if(to && t > new Date(to+'T23:59:59').getTime()) return false;
+      return true;
+    });
+  }
+  return expenses;
+}
+function ledgerPeriodLabel(){
+  if(ledgerFilterMode === 'current'){
+    const start = new Date(config.periodStart);
+    return 'Período desde ' + start.toLocaleDateString('es-AR', {month:'long', year:'numeric'});
+  }
+  if(ledgerFilterMode === 'custom'){
+    const from = document.getElementById('ledgerFromDate').value;
+    const to = document.getElementById('ledgerToDate').value;
+    const fmt = (s) => new Date(s+'T00:00:00').toLocaleDateString('es-AR');
+    if(from && to) return 'Del ' + fmt(from) + ' al ' + fmt(to);
+    if(from) return 'Desde el ' + fmt(from);
+    if(to) return 'Hasta el ' + fmt(to);
+    return 'Rango de fechas sin definir';
+  }
+  return 'Todo el historial';
 }
 document.getElementById('closeLedgerBtn').addEventListener('click', () => ledgerOverlay.classList.remove('show'));
 
@@ -1097,8 +1176,7 @@ function buildReportHTML(anonymize){
   const mIn = totalMoneyIn();
   const mOut = totalMoneyOut();
   const genDate = new Date().toLocaleDateString('es-AR', {day:'numeric', month:'long', year:'numeric'});
-  const start = new Date(config.periodStart);
-  const periodLabel = start.toLocaleDateString('es-AR', {month:'long', year:'numeric'});
+  const periodLabel = ledgerPeriodLabel();
   const nameFor = (d) => (!anonymize || d.isPublic) ? (d.donor || 'Anónimo') : 'Anónimo';
 
   return `
@@ -1106,7 +1184,7 @@ function buildReportHTML(anonymize){
       <div class="report-header">
         <h1>${config.orgName}</h1>
         <div class="sub">${anonymize ? 'Rendición de cuentas a donantes' : 'Reporte interno completo (con nombres)'}</div>
-        <div class="sub">Período desde ${periodLabel} · Generado el ${genDate}</div>
+        <div class="sub">${periodLabel} · Generado el ${genDate}</div>
       </div>
 
       <div class="report-section">
@@ -1130,7 +1208,7 @@ function buildReportHTML(anonymize){
         <h2>Donaciones de dinero</h2>
         <table class="report-table">
           <tr><th>Fecha</th><th>Donante</th><th>Monto</th></tr>
-          ${donations.filter(d=>d.type==='money').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${nameFor(d)}</td><td>${fmtMoney(d.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}
+          ${getLedgerDonations().filter(d=>d.type==='money').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${nameFor(d)}</td><td>${fmtMoney(d.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}
         </table>
       </div>
 
@@ -1138,7 +1216,7 @@ function buildReportHTML(anonymize){
         <h2>Egresos de dinero</h2>
         <table class="report-table">
           <tr><th>Fecha</th><th>Descripción</th><th>Monto</th></tr>
-          ${expenses.filter(e=>e.type==='money').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(e => `<tr><td>${new Date(e.ts).toLocaleDateString('es-AR')}</td><td>${e.desc||''}</td><td>${fmtMoney(e.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}
+          ${getLedgerExpenses().filter(e=>e.type==='money').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(e => `<tr><td>${new Date(e.ts).toLocaleDateString('es-AR')}</td><td>${e.desc||''}</td><td>${fmtMoney(e.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}
         </table>
       </div>
 
@@ -1146,7 +1224,7 @@ function buildReportHTML(anonymize){
         <h2>Donaciones de alimentos</h2>
         <table class="report-table">
           <tr><th>Fecha</th><th>Donante</th><th>Producto</th><th>Cantidad</th></tr>
-          ${donations.filter(d=>d.type==='food').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => {
+          ${getLedgerDonations().filter(d=>d.type==='food').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => {
             const f = config.foodGoals.find(x=>x.id===d.foodId);
             return `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${nameFor(d)}</td><td>${f?f.name:'Categoría eliminada'}</td><td>${fmtKg(d.amount)}</td></tr>`;
           }).join('') || '<tr><td colspan="4">Sin registros</td></tr>'}
@@ -1157,7 +1235,7 @@ function buildReportHTML(anonymize){
         <h2>Egresos de alimentos</h2>
         <table class="report-table">
           <tr><th>Fecha</th><th>Descripción</th><th>Producto</th><th>Cantidad</th></tr>
-          ${expenses.filter(e=>e.type==='food').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(e => {
+          ${getLedgerExpenses().filter(e=>e.type==='food').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(e => {
             const f = config.foodGoals.find(x=>x.id===e.foodId);
             return `<tr><td>${new Date(e.ts).toLocaleDateString('es-AR')}</td><td>${e.desc||''}</td><td>${f?f.name:'Categoría eliminada'}</td><td>${fmtKg(e.amount)}</td></tr>`;
           }).join('') || '<tr><td colspan="4">Sin registros</td></tr>'}
@@ -1208,16 +1286,16 @@ function populateLedgerFoodSelect(){
 }
 
 function totalMoneyIn(){
-  return donations.filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0);
+  return getLedgerDonations().filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0);
 }
 function totalMoneyOut(){
-  return expenses.filter(e => e.type === 'money').reduce((s,e)=>s+e.amount,0);
+  return getLedgerExpenses().filter(e => e.type === 'money').reduce((s,e)=>s+e.amount,0);
 }
 function totalFoodIn(foodId){
-  return donations.filter(d => d.type === 'food' && d.foodId === foodId).reduce((s,d)=>s+d.amount,0);
+  return getLedgerDonations().filter(d => d.type === 'food' && d.foodId === foodId).reduce((s,d)=>s+d.amount,0);
 }
 function totalFoodOut(foodId){
-  return expenses.filter(e => e.type === 'food' && e.foodId === foodId).reduce((s,e)=>s+e.amount,0);
+  return getLedgerExpenses().filter(e => e.type === 'food' && e.foodId === foodId).reduce((s,e)=>s+e.amount,0);
 }
 
 function renderLedger(){
@@ -1249,8 +1327,8 @@ function renderLedger(){
 
   const moneyFeed = document.getElementById('ledgerMoneyFeed');
   const moneyMovs = [
-    ...donations.filter(d=>d.type==='money').map(d => ({ ts: d.ts, label: (d.donor || 'Anónimo') + ' · ingreso', amount: d.amount, sign: 1 })),
-    ...expenses.filter(e=>e.type==='money').map(e => ({ ts: e.ts, label: (e.desc || 'Egreso') + ' · egreso', amount: e.amount, sign: -1, id: e.id }))
+    ...getLedgerDonations().filter(d=>d.type==='money').map(d => ({ ts: d.ts, label: (d.donor || 'Anónimo') + ' · ingreso', amount: d.amount, sign: 1 })),
+    ...getLedgerExpenses().filter(e=>e.type==='money').map(e => ({ ts: e.ts, label: (e.desc || 'Egreso') + ' · egreso', amount: e.amount, sign: -1, id: e.id }))
   ].sort((a,b)=> new Date(b.ts) - new Date(a.ts)).slice(0,20);
   moneyFeed.innerHTML = '';
   if(moneyMovs.length === 0){
@@ -1272,11 +1350,11 @@ function renderLedger(){
 
   const foodFeed = document.getElementById('ledgerFoodFeed');
   const foodMovs = [
-    ...donations.filter(d=>d.type==='food').map(d => {
+    ...getLedgerDonations().filter(d=>d.type==='food').map(d => {
       const f = config.foodGoals.find(x=>x.id===d.foodId);
       return { ts: d.ts, label: (d.donor || 'Anónimo') + ' · ingreso · ' + (f ? f.name : 'categoría eliminada'), amount: d.amount, sign: 1 };
     }),
-    ...expenses.filter(e=>e.type==='food').map(e => {
+    ...getLedgerExpenses().filter(e=>e.type==='food').map(e => {
       const f = config.foodGoals.find(x=>x.id===e.foodId);
       return { ts: e.ts, label: (e.desc || 'Egreso') + ' · egreso · ' + (f ? f.name : 'categoría eliminada'), amount: e.amount, sign: -1 };
     })
