@@ -293,6 +293,7 @@
   </section>
 
   <button class="cta" id="openFormBtn">Cargar una donación</button>
+  <button class="cta" id="openExpenseBtn" style="background:var(--err);display:none;">Cargar un egreso</button>
 
   <section class="block" style="margin-top:30px;">
     <p class="block-title">Últimas donaciones</p>
@@ -469,6 +470,43 @@
     </div>
   </div>
 </div>
+<!-- Cargar egreso (admin) -->
+<div class="overlay" id="expenseOverlay">
+  <div class="modal">
+    <h2>Cargar un egreso</h2>
+
+    <div class="seg">
+      <button type="button" id="expTabMoney" class="active">Dinero</button>
+      <button type="button" id="expTabFood">Alimentos</button>
+    </div>
+
+    <div id="expMoneyFields">
+      <label for="expMoneyDesc">Descripción</label>
+      <input type="text" id="expMoneyDesc" placeholder="Ej: Compra de verdura en el mercado">
+      <label for="expMoneyAmount">Monto ($)</label>
+      <input type="number" id="expMoneyAmount" min="1">
+    </div>
+
+    <div id="expFoodFields" style="display:none;">
+      <label for="expFoodCategory">Producto</label>
+      <select id="expFoodCategory"></select>
+      <label for="expFoodDesc">Descripción (opcional)</label>
+      <input type="text" id="expFoodDesc" placeholder="Ej: Usado para el guiso del sábado">
+      <label for="expFoodAmount">Cantidad (kg)</label>
+      <input type="number" id="expFoodAmount" min="0.1" step="0.1">
+    </div>
+
+    <label for="expenseDate">Fecha del egreso (opcional, para cargar egresos anteriores)</label>
+    <input type="date" id="expenseDate">
+
+    <p class="form-err" id="expenseErr"></p>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" id="cancelExpenseBtn">Cancelar</button>
+      <button class="btn-solid" id="submitExpenseBtn">Registrar</button>
+    </div>
+  </div>
+</div>
 <!-- Ingresos y egresos (admin) -->
 <div class="overlay" id="ledgerOverlay">
   <div class="modal">
@@ -513,16 +551,6 @@
       </div>
 
       <div class="settings-section">
-        <label style="margin-top:0;">Cargar un egreso de dinero</label>
-        <label for="ledgerMoneyOutDesc">Descripción</label>
-        <input type="text" id="ledgerMoneyOutDesc" placeholder="Ej: Compra de verdura en el mercado">
-        <label for="ledgerMoneyOutAmount">Monto ($)</label>
-        <input type="number" id="ledgerMoneyOutAmount" min="1">
-        <p class="form-err" id="ledgerMoneyErr"></p>
-        <button type="button" class="btn-solid" id="addMoneyExpenseBtn" style="width:100%;margin-top:10px;">Registrar egreso</button>
-      </div>
-
-      <div class="settings-section">
         <label style="margin-top:0;">Movimientos de dinero</label>
         <div class="feed" id="ledgerMoneyFeed"></div>
       </div>
@@ -532,18 +560,6 @@
       <div class="settings-section" style="margin-top:16px;border-top:none;padding-top:0;">
         <label style="margin-top:0;">Saldo de alimentos por categoría</label>
         <div id="ledgerFoodBalances"></div>
-      </div>
-
-      <div class="settings-section">
-        <label style="margin-top:0;">Cargar un egreso de alimento</label>
-        <label for="ledgerFoodOutCategory">Producto</label>
-        <select id="ledgerFoodOutCategory"></select>
-        <label for="ledgerFoodOutDesc">Descripción (opcional)</label>
-        <input type="text" id="ledgerFoodOutDesc" placeholder="Ej: Usado para el guiso del sábado">
-        <label for="ledgerFoodOutAmount">Cantidad (kg)</label>
-        <input type="number" id="ledgerFoodOutAmount" min="0.1" step="0.1">
-        <p class="form-err" id="ledgerFoodErr"></p>
-        <button type="button" class="btn-solid" id="addFoodExpenseBtn" style="width:100%;margin-top:10px;">Registrar egreso</button>
       </div>
 
       <div class="settings-section">
@@ -757,6 +773,7 @@ function render(){
 
   document.getElementById('gearBtn').classList.toggle('show', isAdmin);
   document.getElementById('ledgerBtn').classList.toggle('show', isAdmin);
+  document.getElementById('openExpenseBtn').style.display = isAdmin ? 'block' : 'none';
 
   const newsSection = document.getElementById('newsSection');
   const newsList = document.getElementById('newsList');
@@ -1053,7 +1070,6 @@ document.getElementById('ledgerBtn').addEventListener('click', () => {
 let ledgerFilterMode = 'all'; // 'all' | 'current' | 'custom'
 
 function openLedgerModal(){
-  populateLedgerFoodSelect();
   document.getElementById('ledgerPeriodFilter').value = ledgerFilterMode;
   document.getElementById('ledgerCustomRange').style.display = ledgerFilterMode === 'custom' ? 'block' : 'none';
   renderLedger();
@@ -1272,19 +1288,6 @@ document.getElementById('ledgerTabFood').addEventListener('click', () => {
   document.getElementById('ledgerMoneyView').style.display = 'none';
 });
 
-function populateLedgerFoodSelect(){
-  const sel = document.getElementById('ledgerFoodOutCategory');
-  const prevVal = sel.value;
-  sel.innerHTML = '';
-  config.foodGoals.forEach(f => {
-    const opt = document.createElement('option');
-    opt.value = f.id;
-    opt.textContent = f.name;
-    sel.appendChild(opt);
-  });
-  if(prevVal) sel.value = prevVal;
-}
-
 function totalMoneyIn(){
   return getLedgerDonations().filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0);
 }
@@ -1377,31 +1380,85 @@ function renderLedger(){
     });
   }
 }
+// --- Cargar egreso (admin) ---
+const expenseOverlay = document.getElementById('expenseOverlay');
 
-document.getElementById('addMoneyExpenseBtn').addEventListener('click', async () => {
-  const errEl = document.getElementById('ledgerMoneyErr');
+document.getElementById('openExpenseBtn').addEventListener('click', () => {
+  if(!isAdmin) return;
+  document.getElementById('expenseErr').classList.remove('show');
+  document.getElementById('expMoneyDesc').value = '';
+  document.getElementById('expMoneyAmount').value = '';
+  document.getElementById('expFoodDesc').value = '';
+  document.getElementById('expFoodAmount').value = '';
+  document.getElementById('expenseDate').value = '';
+  document.getElementById('expTabMoney').classList.add('active');
+  document.getElementById('expTabFood').classList.remove('active');
+  document.getElementById('expMoneyFields').style.display = 'block';
+  document.getElementById('expFoodFields').style.display = 'none';
+  populateExpenseFoodSelect();
+  expenseOverlay.classList.add('show');
+});
+document.getElementById('cancelExpenseBtn').addEventListener('click', () => expenseOverlay.classList.remove('show'));
+
+document.getElementById('expTabMoney').addEventListener('click', () => {
+  document.getElementById('expTabMoney').classList.add('active');
+  document.getElementById('expTabFood').classList.remove('active');
+  document.getElementById('expMoneyFields').style.display = 'block';
+  document.getElementById('expFoodFields').style.display = 'none';
+});
+document.getElementById('expTabFood').addEventListener('click', () => {
+  document.getElementById('expTabFood').classList.add('active');
+  document.getElementById('expTabMoney').classList.remove('active');
+  document.getElementById('expFoodFields').style.display = 'block';
+  document.getElementById('expMoneyFields').style.display = 'none';
+});
+
+function populateExpenseFoodSelect(){
+  const sel = document.getElementById('expFoodCategory');
+  sel.innerHTML = '';
+  config.foodGoals.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f.id;
+    opt.textContent = f.name;
+    sel.appendChild(opt);
+  });
+}
+
+document.getElementById('submitExpenseBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('expenseErr');
   errEl.classList.remove('show');
-  const desc = document.getElementById('ledgerMoneyOutDesc').value.trim();
-  const amt = parseFloat(document.getElementById('ledgerMoneyOutAmount').value);
-  if(!desc){
-    errEl.textContent = 'Ingresá una descripción del gasto.';
-    errEl.classList.add('show');
-    return;
+  const isMoney = document.getElementById('expTabMoney').classList.contains('active');
+
+  let ts = new Date().toISOString();
+  const customDate = document.getElementById('expenseDate').value;
+  if(customDate){
+    const now = new Date();
+    const [y,m,d] = customDate.split('-').map(Number);
+    ts = new Date(y, m-1, d, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
   }
-  if(!amt || amt <= 0){
-    errEl.textContent = 'Ingresá un monto válido.';
-    errEl.classList.add('show');
-    return;
+
+  let entry;
+  if(isMoney){
+    const desc = document.getElementById('expMoneyDesc').value.trim();
+    const amt = parseFloat(document.getElementById('expMoneyAmount').value);
+    if(!desc){ errEl.textContent = 'Ingresá una descripción del gasto.'; errEl.classList.add('show'); return; }
+    if(!amt || amt <= 0){ errEl.textContent = 'Ingresá un monto válido.'; errEl.classList.add('show'); return; }
+    entry = { id: Date.now()+'-'+Math.random(), type:'money', desc, amount: amt, ts };
+  } else {
+    const foodId = document.getElementById('expFoodCategory').value;
+    const desc = document.getElementById('expFoodDesc').value.trim();
+    const amt = parseFloat(document.getElementById('expFoodAmount').value);
+    if(!foodId){ errEl.textContent = 'No hay categorías de alimentos disponibles.'; errEl.classList.add('show'); return; }
+    if(!amt || amt <= 0){ errEl.textContent = 'Ingresá una cantidad válida.'; errEl.classList.add('show'); return; }
+    entry = { id: Date.now()+'-'+Math.random(), type:'food', foodId, desc, amount: amt, ts };
   }
-  const entry = { id: Date.now()+'-'+Math.random(), type:'money', desc, amount: amt, ts: new Date().toISOString() };
-  const btn = document.getElementById('addMoneyExpenseBtn');
+
+  const btn = document.getElementById('submitExpenseBtn');
   btn.disabled = true;
   try{
     expenses.push(entry);
     await saveExpenses();
-    document.getElementById('ledgerMoneyOutDesc').value = '';
-    document.getElementById('ledgerMoneyOutAmount').value = '';
-    renderLedger();
+    expenseOverlay.classList.remove('show');
   }catch(e){
     expenses.pop();
     errEl.textContent = 'No se pudo guardar el egreso. Revisá tu conexión e intentá de nuevo.';
@@ -1411,39 +1468,6 @@ document.getElementById('addMoneyExpenseBtn').addEventListener('click', async ()
   }
 });
 
-document.getElementById('addFoodExpenseBtn').addEventListener('click', async () => {
-  const errEl = document.getElementById('ledgerFoodErr');
-  errEl.classList.remove('show');
-  const foodId = document.getElementById('ledgerFoodOutCategory').value;
-  const desc = document.getElementById('ledgerFoodOutDesc').value.trim();
-  const amt = parseFloat(document.getElementById('ledgerFoodOutAmount').value);
-  if(!foodId){
-    errEl.textContent = 'No hay categorías de alimentos disponibles.';
-    errEl.classList.add('show');
-    return;
-  }
-  if(!amt || amt <= 0){
-    errEl.textContent = 'Ingresá una cantidad válida.';
-    errEl.classList.add('show');
-    return;
-  }
-  const entry = { id: Date.now()+'-'+Math.random(), type:'food', foodId, desc, amount: amt, ts: new Date().toISOString() };
-  const btn = document.getElementById('addFoodExpenseBtn');
-  btn.disabled = true;
-  try{
-    expenses.push(entry);
-    await saveExpenses();
-    document.getElementById('ledgerFoodOutDesc').value = '';
-    document.getElementById('ledgerFoodOutAmount').value = '';
-    renderLedger();
-  }catch(e){
-    expenses.pop();
-    errEl.textContent = 'No se pudo guardar el egreso. Revisá tu conexión e intentá de nuevo.';
-    errEl.classList.add('show');
-  }finally{
-    btn.disabled = false;
-  }
-});
 // --- Editar / eliminar donaciones (admin) ---
 document.getElementById('feed').addEventListener('click', (e) => {
   const editBtn = e.target.closest('.feed-edit-btn');
