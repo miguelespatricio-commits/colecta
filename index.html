@@ -324,6 +324,11 @@
       <button type="button" id="tabFood">Alimentos</button>
     </div>
 
+    <div id="adminDateField" style="display:none;">
+      <label for="donationDate">Fecha de la donación (opcional, para cargar donaciones anteriores)</label>
+      <input type="date" id="donationDate">
+    </div>
+
     <div id="moneyFields">
       <div id="bankInfoBox" style="display:none;background:var(--gold-soft);border:1px solid var(--gold);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px;line-height:1.5;"></div>
       <label for="moneyAmount">Monto ($)</label>
@@ -625,6 +630,14 @@ function getMonday(d){
   date.setDate(date.getDate() + diff);
   return date;
 }
+function fmtDate(iso){
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return dd + '/' + mm + '/' + yyyy;
+}
+
 function relTime(iso){
   const diffMs = Date.now() - new Date(iso).getTime();
   const mins = Math.round(diffMs/60000);
@@ -862,7 +875,7 @@ function render(){
             <div class="feed-detail">${detail}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
-            <div class="feed-when">${relTime(d.ts)}</div>
+            <div class="feed-when">${fmtDate(d.ts)}</div>
             ${isAdmin ? `
               <button type="button" class="feed-edit-btn" data-id="${d.id}" title="Editar" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;">&#9998;</button>
               <button type="button" class="feed-delete-btn" data-id="${d.id}" title="Eliminar" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;">&#128465;</button>
@@ -936,6 +949,7 @@ function refreshSubmitState(){
 const formOverlay = document.getElementById('formOverlay');
 document.getElementById('openFormBtn').addEventListener('click', () => {
   formOverlay.classList.add('show');
+  document.getElementById('adminDateField').style.display = isAdmin ? 'block' : 'none';
   refreshSubmitState();
 });
 document.getElementById('cancelFormBtn').addEventListener('click', () => formOverlay.classList.remove('show'));
@@ -963,17 +977,28 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
   if(!donor){ formErr.textContent = 'Ingresá tu nombre y apellido.'; formErr.classList.add('show'); return; }
   const isPublic = document.getElementById('donationPublic').checked;
   const isMoney = document.getElementById('tabMoney').classList.contains('active');
+
+  let ts = new Date().toISOString();
+  if(isAdmin){
+    const customDate = document.getElementById('donationDate').value; // formato AAAA-MM-DD
+    if(customDate){
+      const now = new Date();
+      const [y,m,d] = customDate.split('-').map(Number);
+      ts = new Date(y, m-1, d, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+    }
+  }
+
   let entry;
   if(isMoney){
     const amt = parseFloat(document.getElementById('moneyAmount').value);
     if(!amt || amt <= 0){ formErr.textContent = 'Ingresá un monto válido.'; formErr.classList.add('show'); return; }
-    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'money', amount: amt, ts: new Date().toISOString() };
+    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'money', amount: amt, ts };
   } else {
     const amt = parseFloat(document.getElementById('foodAmount').value);
     const foodId = document.getElementById('foodCategory').value;
     if(!foodId){ formErr.textContent = 'No hay categorías de alimentos disponibles.'; formErr.classList.add('show'); return; }
     if(!amt || amt <= 0){ formErr.textContent = 'Ingresá una cantidad válida.'; formErr.classList.add('show'); return; }
-    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'food', foodId, amount: amt, ts: new Date().toISOString() };
+    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'food', foodId, amount: amt, ts };
   }
   const btn = document.getElementById('submitFormBtn');
   btn.disabled = true;
@@ -984,6 +1009,7 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     document.getElementById('moneyAmount').value = '';
     document.getElementById('foodAmount').value = '';
     document.getElementById('donationPublic').checked = false;
+    document.getElementById('donationDate').value = '';
     formOverlay.classList.remove('show');
     render();
   }catch(e){
