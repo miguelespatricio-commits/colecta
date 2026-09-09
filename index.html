@@ -449,6 +449,8 @@
       <input type="checkbox" id="editDonationPublic" style="width:auto;">
       <span style="font-size:13px;color:var(--ink-soft);">Donación pública (se muestra el nombre a todos)</span>
     </label>
+    <label for="editDonationDate">Fecha de la donación</label>
+    <input type="date" id="editDonationDate">
 
     <div id="editMoneyFields">
       <label for="editMoneyAmount">Monto ($)</label>
@@ -1511,6 +1513,8 @@ function openEditDonationModal(id){
   document.getElementById('editDonationErr').classList.remove('show');
   document.getElementById('editDonorName').value = d.donor || '';
   document.getElementById('editDonationPublic').checked = !!d.isPublic;
+  const dt = new Date(d.ts);
+  document.getElementById('editDonationDate').value = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
 
   const moneyFields = document.getElementById('editMoneyFields');
   const foodFields = document.getElementById('editFoodFields');
@@ -1549,6 +1553,14 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
   const prev = JSON.parse(JSON.stringify(donations[idx]));
   const donor = document.getElementById('editDonorName').value.trim() || 'Anónimo';
 
+  const dateVal = document.getElementById('editDonationDate').value;
+  let newTs = donations[idx].ts;
+  if(dateVal){
+    const orig = new Date(donations[idx].ts);
+    const [y,m,d2] = dateVal.split('-').map(Number);
+    newTs = new Date(y, m-1, d2, orig.getHours(), orig.getMinutes(), orig.getSeconds()).toISOString();
+  }
+
   if(donations[idx].type === 'money'){
     const amt = parseFloat(document.getElementById('editMoneyAmount').value);
     if(!amt || amt <= 0){
@@ -1559,6 +1571,7 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     donations[idx].donor = donor;
     donations[idx].amount = amt;
     donations[idx].isPublic = document.getElementById('editDonationPublic').checked;
+    donations[idx].ts = newTs;
   } else {
     const amt = parseFloat(document.getElementById('editFoodAmount').value);
     const foodId = document.getElementById('editFoodCategory').value;
@@ -1571,6 +1584,7 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     donations[idx].foodId = foodId;
     donations[idx].amount = amt;
     donations[idx].isPublic = document.getElementById('editDonationPublic').checked;
+    donations[idx].ts = newTs;
   }
 
   const saveBtn = document.getElementById('saveEditDonationBtn');
