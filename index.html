@@ -267,17 +267,28 @@
   </section>
 
   <section class="block">
-    <p class="block-title">Dinero recaudado este período</p>
+    <p class="block-title">Esta semana — dinero</p>
+    <div class="money-card">
+      <div class="money-top">
+        <span class="num" id="weekNow">$0</span>
+        <span class="goal-total">de <span id="weekGoal">$0</span></span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="weekBar" style="width:0%"></div></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <p class="block-title">Este mes — dinero</p>
     <div class="money-card">
       <div class="money-top">
         <span class="num" id="moneyNow">$0</span>
         <span class="goal-total">de <span id="moneyGoal">$0</span></span>
       </div>
       <div class="bar-track"><div class="bar-fill" id="moneyBar" style="width:0%"></div></div>
-      <div class="week-line">
-        <span>Esta semana: <strong id="weekNow">$0</strong> de <span id="weekGoal">$0</span></span>
-      </div>
       <div class="banner" id="moneyBanner">Meta del período alcanzada — ¡gracias! Las donaciones en dinero quedan en pausa.</div>
+      <div class="week-line">
+        <span>Total histórico recaudado: <strong id="historicMoneyNow">$0</strong></span>
+      </div>
       <div class="transfer-info" id="transferInfo" style="display:none;"></div>
     </div>
   </section>
@@ -807,6 +818,12 @@ function render(){
   const wGoal = config.moneyGoalWeekly;
   document.getElementById('weekNow').textContent = fmtMoney(wNow);
   document.getElementById('weekGoal').textContent = fmtMoney(wGoal);
+  const wPct = wGoal > 0 ? Math.min(100, (wNow/wGoal)*100) : 0;
+  const weekBar = document.getElementById('weekBar');
+  weekBar.style.width = wPct + '%';
+  weekBar.style.background = wPct >= 100 ? 'var(--done)' : 'var(--gold)';
+
+  document.getElementById('historicMoneyNow').textContent = fmtMoney(totalMoneyIn());
 
   const tInfo = document.getElementById('transferInfo');
   if(config.transferInfo && config.transferInfo.trim()){
