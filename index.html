@@ -829,7 +829,7 @@ function render(){
   weekBar.style.width = wPct + '%';
   weekBar.style.background = wPct >= 100 ? 'var(--done)' : 'var(--gold)';
 
-  document.getElementById('historicMoneyNow').textContent = fmtMoney(totalMoneyIn());
+  document.getElementById('historicMoneyNow').textContent = fmtMoney(trueHistoricMoneyTotal());
 
   const tInfo = document.getElementById('transferInfo');
   if(config.transferInfo && config.transferInfo.trim()){
@@ -1317,6 +1317,9 @@ document.getElementById('ledgerTabFood').addEventListener('click', () => {
 
 function totalMoneyIn(){
   return getLedgerDonations().filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0);
+}
+function trueHistoricMoneyTotal(){
+  return donations.filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0);
 }
 function totalMoneyOut(){
   return getLedgerExpenses().filter(e => e.type === 'money').reduce((s,e)=>s+e.amount,0);
