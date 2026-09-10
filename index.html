@@ -1408,9 +1408,11 @@ document.getElementById('ledgerSearchFeed').addEventListener('click', (e) => {
       saveDonations().catch(() => {
         donations.splice(idx, 0, removed);
         render();
+        renderLedger();
         renderLedgerSearch();
       });
       render();
+      renderLedger();
       renderLedgerSearch();
     } else {
       pendingDeleteIdSearch = null;
