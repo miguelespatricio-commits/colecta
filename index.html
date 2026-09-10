@@ -549,6 +549,12 @@
       <button type="button" id="ledgerTabFood">Alimentos</button>
     </div>
 
+    <div class="settings-section">
+      <label style="margin-top:0;">Buscar y editar una donación</label>
+      <input type="text" id="ledgerSearchInput" placeholder="Buscar por nombre del donante...">
+      <div class="feed" id="ledgerSearchFeed" style="margin-top:10px;max-height:340px;overflow-y:auto;"></div>
+    </div>
+
     <div id="ledgerMoneyView">
       <div class="money-card" style="margin-top:16px;">
         <div class="money-top">
@@ -1091,7 +1097,9 @@ let ledgerFilterMode = 'all'; // 'all' | 'current' | 'custom'
 function openLedgerModal(){
   document.getElementById('ledgerPeriodFilter').value = ledgerFilterMode;
   document.getElementById('ledgerCustomRange').style.display = ledgerFilterMode === 'custom' ? 'block' : 'none';
+  document.getElementById('ledgerSearchInput').value = '';
   renderLedger();
+  renderLedgerSearch();
   ledgerOverlay.classList.add('show');
 }
 
@@ -1319,6 +1327,94 @@ function totalFoodIn(foodId){
 function totalFoodOut(foodId){
   return getLedgerExpenses().filter(e => e.type === 'food' && e.foodId === foodId).reduce((s,e)=>s+e.amount,0);
 }
+let pendingDeleteIdSearch = null;
+
+function renderLedgerSearch(){
+  const box = document.getElementById('ledgerSearchFeed');
+  const q = (document.getElementById('ledgerSearchInput').value || '').trim().toLowerCase();
+  let list = [...donations].sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+  if(q){
+    list = list.filter(d => (d.donor || 'anónimo').toLowerCase().includes(q));
+  }
+  box.innerHTML = '';
+  if(list.length === 0){
+    box.innerHTML = '<div class="feed-empty">No se encontraron donaciones.</div>';
+    return;
+  }
+  list.forEach(d => {
+    const row = document.createElement('div');
+    row.className = 'feed-row';
+    let detail;
+    if(d.type === 'money'){
+      detail = fmtMoney(d.amount);
+    } else {
+      const f = config.foodGoals.find(x=>x.id===d.foodId);
+      detail = fmtKg(d.amount) + ' · ' + (f ? f.name : 'alimento (categoría eliminada)');
+    }
+    const displayName = d.donor || 'Anónimo';
+    if(pendingDeleteIdSearch === d.id){
+      row.innerHTML = `
+        <div>
+          <div class="feed-name">${displayName}</div>
+          <div class="feed-detail">¿Eliminar esta donación?</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="ls-cancel-delete" data-id="${d.id}" style="background:none;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;">No</button>
+          <button type="button" class="ls-confirm-delete" data-id="${d.id}" style="background:var(--err);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;">Sí, eliminar</button>
+        </div>
+      `;
+    } else {
+      row.innerHTML = `
+        <div>
+          <div class="feed-name">${displayName}</div>
+          <div class="feed-detail">${detail}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="feed-when">${fmtDate(d.ts)}</div>
+          <button type="button" class="ls-edit-btn" data-id="${d.id}" title="Editar" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;">&#9998;</button>
+          <button type="button" class="ls-delete-btn" data-id="${d.id}" title="Eliminar" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;">&#128465;</button>
+        </div>
+      `;
+    }
+    box.appendChild(row);
+  });
+}
+
+document.getElementById('ledgerSearchInput').addEventListener('input', renderLedgerSearch);
+
+document.getElementById('ledgerSearchFeed').addEventListener('click', (e) => {
+  const editBtn = e.target.closest('.ls-edit-btn');
+  const delBtn = e.target.closest('.ls-delete-btn');
+  const confirmBtn = e.target.closest('.ls-confirm-delete');
+  const cancelBtn = e.target.closest('.ls-cancel-delete');
+
+  if(editBtn){
+    openEditDonationModal(editBtn.dataset.id);
+  } else if(delBtn){
+    pendingDeleteIdSearch = delBtn.dataset.id;
+    renderLedgerSearch();
+  } else if(cancelBtn){
+    pendingDeleteIdSearch = null;
+    renderLedgerSearch();
+  } else if(confirmBtn){
+    const id = confirmBtn.dataset.id;
+    const idx = donations.findIndex(x => x.id === id);
+    if(idx !== -1){
+      const removed = donations.splice(idx, 1)[0];
+      pendingDeleteIdSearch = null;
+      saveDonations().catch(() => {
+        donations.splice(idx, 0, removed);
+        render();
+        renderLedgerSearch();
+      });
+      render();
+      renderLedgerSearch();
+    } else {
+      pendingDeleteIdSearch = null;
+      renderLedgerSearch();
+    }
+  }
+});
 
 function renderLedger(){
   const mIn = totalMoneyIn();
@@ -1611,6 +1707,7 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     editDonationOverlay.classList.remove('show');
     editingDonationId = null;
     render();
+    if(ledgerOverlay.classList.contains('show')) renderLedgerSearch();
   }catch(e){
     donations[idx] = prev;
     errEl.textContent = 'No se pudo guardar. Revisá tu conexión e intentá de nuevo.';
