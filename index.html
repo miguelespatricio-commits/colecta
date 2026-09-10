@@ -139,6 +139,7 @@
   }
   .overlay.show{display:flex;}
   #editDonationOverlay{ z-index:60; }
+  #editExpenseOverlay{ z-index:60; }
   .modal{
     background:var(--paper);width:100%;max-width:520px;
     border-radius:16px 16px 0 0;padding:22px 20px 26px;
@@ -484,6 +485,25 @@
     </div>
   </div>
 </div>
+<!-- Editar egreso (admin) -->
+<div class="overlay" id="editExpenseOverlay">
+  <div class="modal">
+    <h2>Editar egreso</h2>
+    <label for="editExpenseDesc">Descripción</label>
+    <input type="text" id="editExpenseDesc" placeholder="Descripción del gasto">
+    <label for="editExpenseAmount">Monto ($)</label>
+    <input type="number" id="editExpenseAmount" min="1">
+    <label for="editExpenseDate">Fecha del egreso</label>
+    <input type="date" id="editExpenseDate">
+
+    <p class="form-err" id="editExpenseErr"></p>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" id="cancelEditExpenseBtn">Cancelar</button>
+      <button class="btn-solid" id="saveEditExpenseBtn">Guardar</button>
+    </div>
+  </div>
+</div>
 <!-- Cargar egreso (admin) -->
 <div class="overlay" id="expenseOverlay">
   <div class="modal">
@@ -571,8 +591,8 @@
       </div>
 
       <div class="settings-section">
-        <label style="margin-top:0;">Movimientos de dinero</label>
-        <div class="feed" id="ledgerMoneyFeed"></div>
+        <label style="margin-top:0;">Egresos</label>
+        <div class="feed" id="ledgerExpenseFeed"></div>
       </div>
     </div>
 
@@ -1421,7 +1441,78 @@ document.getElementById('ledgerSearchFeed').addEventListener('click', (e) => {
     }
   }
 });
+let pendingDeleteExpenseId = null;
 
+function renderLedgerExpenseFeed(){
+  const box = document.getElementById('ledgerExpenseFeed');
+  const list = getLedgerExpenses().filter(e => e.type === 'money').sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+  box.innerHTML = '';
+  if(list.length === 0){
+    box.innerHTML = '<div class="feed-empty">Todavía no hay egresos registrados.</div>';
+    return;
+  }
+  list.forEach(e => {
+    const row = document.createElement('div');
+    row.className = 'feed-row';
+    if(pendingDeleteExpenseId === e.id){
+      row.innerHTML = `
+        <div>
+          <div class="feed-name">${e.desc || 'Egreso'}</div>
+          <div class="feed-detail">¿Eliminar este egreso?</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="exp-cancel-delete" data-id="${e.id}" style="background:none;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;">No</button>
+          <button type="button" class="exp-confirm-delete" data-id="${e.id}" style="background:var(--err);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;">Sí, eliminar</button>
+        </div>
+      `;
+    } else {
+      row.innerHTML = `
+        <div>
+          <div class="feed-name">${e.desc || 'Egreso'}</div>
+          <div class="feed-detail">- ${fmtMoney(e.amount)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="feed-when">${fmtDate(e.ts)}</div>
+          <button type="button" class="exp-edit-btn" data-id="${e.id}" title="Editar" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;">&#9998;</button>
+          <button type="button" class="exp-delete-btn" data-id="${e.id}" title="Eliminar" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;">&#128465;</button>
+        </div>
+      `;
+    }
+    box.appendChild(row);
+  });
+}
+
+document.getElementById('ledgerExpenseFeed').addEventListener('click', (e) => {
+  const editBtn = e.target.closest('.exp-edit-btn');
+  const delBtn = e.target.closest('.exp-delete-btn');
+  const confirmBtn = e.target.closest('.exp-confirm-delete');
+  const cancelBtn = e.target.closest('.exp-cancel-delete');
+
+  if(editBtn){
+    openEditExpenseModal(editBtn.dataset.id);
+  } else if(delBtn){
+    pendingDeleteExpenseId = delBtn.dataset.id;
+    renderLedgerExpenseFeed();
+  } else if(cancelBtn){
+    pendingDeleteExpenseId = null;
+    renderLedgerExpenseFeed();
+  } else if(confirmBtn){
+    const id = confirmBtn.dataset.id;
+    const idx = expenses.findIndex(x => x.id === id);
+    if(idx !== -1){
+      const removed = expenses.splice(idx, 1)[0];
+      pendingDeleteExpenseId = null;
+      saveExpenses().catch(() => {
+        expenses.splice(idx, 0, removed);
+        renderLedger();
+      });
+      renderLedger();
+    } else {
+      pendingDeleteExpenseId = null;
+      renderLedgerExpenseFeed();
+    }
+  }
+});
 function renderLedger(){
   const mIn = totalMoneyIn();
   const mOut = totalMoneyOut();
@@ -1449,28 +1540,7 @@ function renderLedger(){
     balancesWrap.appendChild(row);
   });
 
-  const moneyFeed = document.getElementById('ledgerMoneyFeed');
-  const moneyMovs = [
-    ...getLedgerDonations().filter(d=>d.type==='money').map(d => ({ ts: d.ts, label: (d.donor || 'Anónimo') + ' · ingreso', amount: d.amount, sign: 1 })),
-    ...getLedgerExpenses().filter(e=>e.type==='money').map(e => ({ ts: e.ts, label: (e.desc || 'Egreso') + ' · egreso', amount: e.amount, sign: -1, id: e.id }))
-  ].sort((a,b)=> new Date(b.ts) - new Date(a.ts)).slice(0,20);
-  moneyFeed.innerHTML = '';
-  if(moneyMovs.length === 0){
-    moneyFeed.innerHTML = '<div class="feed-empty">Todavía no hay movimientos.</div>';
-  } else {
-    moneyMovs.forEach(m => {
-      const row = document.createElement('div');
-      row.className = 'feed-row';
-      row.innerHTML = `
-        <div>
-          <div class="feed-name">${m.label}</div>
-          <div class="feed-detail">${m.sign > 0 ? '+ ' : '- '}${fmtMoney(m.amount)}</div>
-        </div>
-        <div class="feed-when">${relTime(m.ts)}</div>
-      `;
-      moneyFeed.appendChild(row);
-    });
-  }
+  renderLedgerExpenseFeed();
 
   const foodFeed = document.getElementById('ledgerFoodFeed');
   const foodMovs = [
@@ -1725,6 +1795,69 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     saveBtn.disabled = false;
   }
 });
+const editExpenseOverlay = document.getElementById('editExpenseOverlay');
+let editingExpenseId = null;
+
+function openEditExpenseModal(id){
+  const exp = expenses.find(x => x.id === id);
+  if(!exp) return;
+  editingExpenseId = id;
+  document.getElementById('editExpenseErr').classList.remove('show');
+  document.getElementById('editExpenseDesc').value = exp.desc || '';
+  document.getElementById('editExpenseAmount').value = exp.amount;
+  const dt = new Date(exp.ts);
+  document.getElementById('editExpenseDate').value = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+  editExpenseOverlay.classList.add('show');
+}
+
+document.getElementById('cancelEditExpenseBtn').addEventListener('click', () => {
+  editExpenseOverlay.classList.remove('show');
+  editingExpenseId = null;
+});
+
+document.getElementById('saveEditExpenseBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('editExpenseErr');
+  errEl.classList.remove('show');
+  const idx = expenses.findIndex(x => x.id === editingExpenseId);
+  if(idx === -1){ editExpenseOverlay.classList.remove('show'); return; }
+
+  const prev = JSON.parse(JSON.stringify(expenses[idx]));
+  const desc = document.getElementById('editExpenseDesc').value.trim();
+  const amt = parseFloat(document.getElementById('editExpenseAmount').value);
+  if(!amt || amt <= 0){
+    errEl.textContent = 'Ingresá un monto válido.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  const dateVal = document.getElementById('editExpenseDate').value;
+  let newTs = expenses[idx].ts;
+  if(dateVal){
+    const orig = new Date(expenses[idx].ts);
+    const [y,m,d2] = dateVal.split('-').map(Number);
+    newTs = new Date(y, m-1, d2, orig.getHours(), orig.getMinutes(), orig.getSeconds()).toISOString();
+  }
+
+  expenses[idx].desc = desc;
+  expenses[idx].amount = amt;
+  expenses[idx].ts = newTs;
+
+  const saveBtn = document.getElementById('saveEditExpenseBtn');
+  saveBtn.disabled = true;
+  try{
+    await saveExpenses();
+    editExpenseOverlay.classList.remove('show');
+    editingExpenseId = null;
+    renderLedger();
+  }catch(e){
+    expenses[idx] = prev;
+    errEl.textContent = 'No se pudo guardar. Revisá tu conexión e intentá de nuevo.';
+    errEl.classList.add('show');
+  }finally{
+    saveBtn.disabled = false;
+  }
+});
+
 
 // --- Admin access modal ---
 const adminOverlay = document.getElementById('adminOverlay');
