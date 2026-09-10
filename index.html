@@ -1713,7 +1713,10 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     editDonationOverlay.classList.remove('show');
     editingDonationId = null;
     render();
-    if(ledgerOverlay.classList.contains('show')) renderLedgerSearch();
+    if(ledgerOverlay.classList.contains('show')){
+      renderLedger();
+      renderLedgerSearch();
+    }
   }catch(e){
     donations[idx] = prev;
     errEl.textContent = 'No se pudo guardar. Revisá tu conexión e intentá de nuevo.';
