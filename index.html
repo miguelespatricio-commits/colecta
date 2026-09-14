@@ -325,9 +325,11 @@
 <div class="overlay" id="formOverlay">
   <div class="modal">
     <h2>Cargar una donación</h2>
-    <label for="donorName">Nombre y apellido</label>
-    <input type="text" id="donorName" placeholder="Ej: María Gómez">
-    <label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;cursor:pointer;">
+    <div id="donorNameField">
+      <label for="donorName">Nombre y apellido</label>
+      <input type="text" id="donorName" placeholder="Ej: María Gómez">
+    </div>
+    <label id="donationPublicField" style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;cursor:pointer;">
       <input type="checkbox" id="donationPublic" style="width:auto;margin-top:3px;">
       <span style="font-size:13px;color:var(--ink-soft);display:block;">Hacer pública mi donación (se va a mostrar mi nombre en la lista para todos). Si no marcás esto, tu donación aparece como "Anónimo" para el resto.</span>
     </label>
@@ -463,8 +465,8 @@
 <!-- Editar donación (admin) -->
 <div class="overlay" id="editDonationOverlay">
   <div class="modal">
-    <h2>Editar donación</h2>
-    <label for="editDonorName">Nombre del donante</label>
+    <h2 id="editDonationTitle">Editar donación</h2>
+    <label for="editDonorName" id="editDonorLabel">Nombre del donante</label>
     <input type="text" id="editDonorName" placeholder="Anónimo">
     <label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer;">
       <input type="checkbox" id="editDonationPublic" style="width:auto;">
@@ -1052,6 +1054,7 @@ const formOverlay = document.getElementById('formOverlay');
 document.getElementById('openFormBtn').addEventListener('click', () => {
   formOverlay.classList.add('show');
   document.getElementById('adminDateField').style.display = isAdmin ? 'block' : 'none';
+  document.getElementById('tabMoney').click();
   refreshSubmitState();
 });
 document.getElementById('cancelFormBtn').addEventListener('click', () => formOverlay.classList.remove('show'));
@@ -1063,6 +1066,8 @@ document.getElementById('tabMoney').addEventListener('click', () => {
   document.getElementById('moneyFields').style.display = 'block';
   document.getElementById('foodFields').style.display = 'none';
   document.getElementById('otherFields').style.display = 'none';
+  document.getElementById('donorNameField').style.display = 'block';
+  document.getElementById('donationPublicField').style.display = 'flex';
   refreshSubmitState();
 });
 document.getElementById('tabFood').addEventListener('click', () => {
@@ -1072,6 +1077,8 @@ document.getElementById('tabFood').addEventListener('click', () => {
   document.getElementById('foodFields').style.display = 'block';
   document.getElementById('moneyFields').style.display = 'none';
   document.getElementById('otherFields').style.display = 'none';
+  document.getElementById('donorNameField').style.display = 'block';
+  document.getElementById('donationPublicField').style.display = 'flex';
   refreshSubmitState();
 });
 document.getElementById('tabOther').addEventListener('click', () => {
@@ -1081,6 +1088,8 @@ document.getElementById('tabOther').addEventListener('click', () => {
   document.getElementById('otherFields').style.display = 'block';
   document.getElementById('moneyFields').style.display = 'none';
   document.getElementById('foodFields').style.display = 'none';
+  document.getElementById('donorNameField').style.display = 'none';
+  document.getElementById('donationPublicField').style.display = 'none';
   refreshSubmitState();
 });
 document.getElementById('foodCategory').addEventListener('change', refreshSubmitState);
@@ -1748,6 +1757,15 @@ function openEditDonationModal(id){
   document.getElementById('editDonationErr').classList.remove('show');
   document.getElementById('editDonorName').value = d.donor || '';
   document.getElementById('editDonationPublic').checked = !!d.isPublic;
+  if(d.type === 'other'){
+    document.getElementById('editDonationTitle').textContent = 'Editar otro ingreso';
+    document.getElementById('editDonorLabel').textContent = 'Título del ingreso';
+    document.getElementById('editDonationPublic').closest('label').style.display = 'none';
+  } else {
+    document.getElementById('editDonationTitle').textContent = 'Editar donación';
+    document.getElementById('editDonorLabel').textContent = 'Nombre del donante';
+    document.getElementById('editDonationPublic').closest('label').style.display = 'flex';
+  }
   const dt = new Date(d.ts);
   document.getElementById('editDonationDate').value = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
 
