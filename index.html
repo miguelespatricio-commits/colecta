@@ -801,7 +801,12 @@ function weekDonations(){
   const start = Math.max(monday, new Date(config.periodStart).getTime());
   return donations.filter(d => new Date(d.ts).getTime() >= start && d.type === 'money');
 }
-function moneyTotal(){ return periodDonations().filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0); }
+function monthDonations(){
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+  return donations.filter(d => d.type === 'money' && new Date(d.ts).getTime() >= start);
+}
+function moneyTotal(){ return monthDonations().reduce((s,d)=>s+d.amount,0); }
 function weekTotal(){ return weekDonations().reduce((s,d)=>s+d.amount,0); }
 function foodTotal(id){ return periodDonations().filter(d => d.type === 'food' && d.foodId === id).reduce((s,d)=>s+d.amount,0); }
 
