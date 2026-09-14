@@ -336,6 +336,7 @@
     <div class="seg">
       <button type="button" id="tabMoney" class="active">Dinero</button>
       <button type="button" id="tabFood">Alimentos</button>
+      <button type="button" id="tabOther" style="display:none;">Otro ingreso</button>
     </div>
 
     <div id="adminDateField" style="display:none;">
@@ -356,6 +357,13 @@
       <label for="foodAmount">Cantidad (kg)</label>
       <input type="number" id="foodAmount" placeholder="Ej: 2" min="0.1" step="0.1">
       <p class="locked" id="foodLocked" style="display:none;">Esa categoría ya llegó a la meta de este período.</p>
+    </div>
+
+    <div id="otherFields" style="display:none;">
+      <label for="otherTitle">Título del ingreso</label>
+      <input type="text" id="otherTitle" placeholder="Ej: Intereses generados">
+      <label for="otherAmount">Monto ($)</label>
+      <input type="number" id="otherAmount" placeholder="Ej: 3500" min="1">
     </div>
 
     <p class="form-err" id="formErr"></p>
@@ -799,7 +807,7 @@ function periodDonations(){
 function weekDonations(){
   const monday = getMonday(new Date()).getTime();
   const start = Math.max(monday, new Date(config.periodStart).getTime());
-  return donations.filter(d => new Date(d.ts).getTime() >= start && d.type === 'money');
+  return donations.filter(d => new Date(d.ts).getTime() >= start && (d.type === 'money' || d.type === 'other'));
 }
 function monthDonations(){
   const now = new Date();
@@ -819,6 +827,8 @@ function render(){
   document.getElementById('gearBtn').classList.toggle('show', isAdmin);
   document.getElementById('ledgerBtn').classList.toggle('show', isAdmin);
   document.getElementById('openExpenseBtn').style.display = isAdmin ? 'block' : 'none';
+  document.getElementById('openFormBtn').textContent = isAdmin ? 'Cargar un ingreso' : 'Cargar una donación';
+  document.getElementById('tabOther').style.display = isAdmin ? 'block' : 'none';
 
   const newsSection = document.getElementById('newsSection');
   const newsList = document.getElementById('newsList');
@@ -939,6 +949,8 @@ function render(){
       let detail;
       if(d.type === 'money'){
         detail = fmtMoney(d.amount);
+      } else if(d.type === 'other'){
+        detail = fmtMoney(d.amount) + ' · Otro ingreso';
       } else {
         const f = config.foodGoals.find(x=>x.id===d.foodId);
         detail = fmtKg(d.amount) + ' · ' + (f ? f.name : 'alimento (categoría eliminada)');
@@ -1022,8 +1034,11 @@ function updateFormLocks(){
 
 function refreshSubmitState(){
   const isMoney = document.getElementById('tabMoney').classList.contains('active');
+  const isOther = document.getElementById('tabOther').classList.contains('active');
   const btn = document.getElementById('submitFormBtn');
-  if(isMoney){
+  if(isOther){
+    btn.disabled = false;
+  } else if(isMoney){
     btn.disabled = config.moneyGoalMonthly > 0 && moneyTotal() >= config.moneyGoalMonthly;
   } else {
     const sel = document.getElementById('foodCategory');
@@ -1044,15 +1059,28 @@ document.getElementById('cancelFormBtn').addEventListener('click', () => formOve
 document.getElementById('tabMoney').addEventListener('click', () => {
   document.getElementById('tabMoney').classList.add('active');
   document.getElementById('tabFood').classList.remove('active');
+  document.getElementById('tabOther').classList.remove('active');
   document.getElementById('moneyFields').style.display = 'block';
   document.getElementById('foodFields').style.display = 'none';
+  document.getElementById('otherFields').style.display = 'none';
   refreshSubmitState();
 });
 document.getElementById('tabFood').addEventListener('click', () => {
   document.getElementById('tabFood').classList.add('active');
   document.getElementById('tabMoney').classList.remove('active');
+  document.getElementById('tabOther').classList.remove('active');
   document.getElementById('foodFields').style.display = 'block';
   document.getElementById('moneyFields').style.display = 'none';
+  document.getElementById('otherFields').style.display = 'none';
+  refreshSubmitState();
+});
+document.getElementById('tabOther').addEventListener('click', () => {
+  document.getElementById('tabOther').classList.add('active');
+  document.getElementById('tabMoney').classList.remove('active');
+  document.getElementById('tabFood').classList.remove('active');
+  document.getElementById('otherFields').style.display = 'block';
+  document.getElementById('moneyFields').style.display = 'none';
+  document.getElementById('foodFields').style.display = 'none';
   refreshSubmitState();
 });
 document.getElementById('foodCategory').addEventListener('change', refreshSubmitState);
@@ -1060,10 +1088,8 @@ document.getElementById('foodCategory').addEventListener('change', refreshSubmit
 document.getElementById('submitFormBtn').addEventListener('click', async () => {
   const formErr = document.getElementById('formErr');
   formErr.classList.remove('show');
-  const donor = document.getElementById('donorName').value.trim();
-  if(!donor){ formErr.textContent = 'Ingresá tu nombre y apellido.'; formErr.classList.add('show'); return; }
-  const isPublic = document.getElementById('donationPublic').checked;
   const isMoney = document.getElementById('tabMoney').classList.contains('active');
+  const isOther = document.getElementById('tabOther').classList.contains('active');
 
   let ts = new Date().toISOString();
   if(isAdmin){
@@ -1076,16 +1102,27 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
   }
 
   let entry;
-  if(isMoney){
-    const amt = parseFloat(document.getElementById('moneyAmount').value);
+  if(isOther){
+    const title = document.getElementById('otherTitle').value.trim();
+    const amt = parseFloat(document.getElementById('otherAmount').value);
+    if(!title){ formErr.textContent = 'Ingresá un título para el ingreso.'; formErr.classList.add('show'); return; }
     if(!amt || amt <= 0){ formErr.textContent = 'Ingresá un monto válido.'; formErr.classList.add('show'); return; }
-    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'money', amount: amt, ts };
+    entry = { id: Date.now()+'-'+Math.random(), donor: title, isPublic: true, type:'other', amount: amt, ts };
   } else {
-    const amt = parseFloat(document.getElementById('foodAmount').value);
-    const foodId = document.getElementById('foodCategory').value;
-    if(!foodId){ formErr.textContent = 'No hay categorías de alimentos disponibles.'; formErr.classList.add('show'); return; }
-    if(!amt || amt <= 0){ formErr.textContent = 'Ingresá una cantidad válida.'; formErr.classList.add('show'); return; }
-    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'food', foodId, amount: amt, ts };
+    const donor = document.getElementById('donorName').value.trim();
+    if(!donor){ formErr.textContent = 'Ingresá tu nombre y apellido.'; formErr.classList.add('show'); return; }
+    const isPublic = document.getElementById('donationPublic').checked;
+    if(isMoney){
+      const amt = parseFloat(document.getElementById('moneyAmount').value);
+      if(!amt || amt <= 0){ formErr.textContent = 'Ingresá un monto válido.'; formErr.classList.add('show'); return; }
+      entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'money', amount: amt, ts };
+    } else {
+      const amt = parseFloat(document.getElementById('foodAmount').value);
+      const foodId = document.getElementById('foodCategory').value;
+      if(!foodId){ formErr.textContent = 'No hay categorías de alimentos disponibles.'; formErr.classList.add('show'); return; }
+      if(!amt || amt <= 0){ formErr.textContent = 'Ingresá una cantidad válida.'; formErr.classList.add('show'); return; }
+      entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'food', foodId, amount: amt, ts };
+    }
   }
   const btn = document.getElementById('submitFormBtn');
   btn.disabled = true;
@@ -1095,13 +1132,15 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     document.getElementById('donorName').value = '';
     document.getElementById('moneyAmount').value = '';
     document.getElementById('foodAmount').value = '';
+    document.getElementById('otherTitle').value = '';
+    document.getElementById('otherAmount').value = '';
     document.getElementById('donationPublic').checked = false;
     document.getElementById('donationDate').value = '';
     formOverlay.classList.remove('show');
     render();
   }catch(e){
     donations.pop();
-    formErr.textContent = 'No se pudo guardar la donación. Revisá tu conexión e intentá de nuevo.';
+    formErr.textContent = 'No se pudo guardar. Revisá tu conexión e intentá de nuevo.';
     formErr.classList.add('show');
   }finally{
     btn.disabled = false;
@@ -1277,7 +1316,7 @@ function buildReportHTML(anonymize){
         <h2>Donaciones de dinero</h2>
         <table class="report-table">
           <tr><th>Fecha</th><th>Donante</th><th>Monto</th></tr>
-          ${getLedgerDonations().filter(d=>d.type==='money').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${nameFor(d)}</td><td>${fmtMoney(d.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}
+          ${getLedgerDonations().filter(d=>d.type==='money'||d.type==='other').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${nameFor(d)}</td><td>${fmtMoney(d.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Sin registros</td></tr>'}
         </table>
       </div>
 
@@ -1342,7 +1381,7 @@ document.getElementById('ledgerTabFood').addEventListener('click', () => {
 });
 
 function totalMoneyIn(){
-  return getLedgerDonations().filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0);
+  return getLedgerDonations().filter(d => d.type === 'money' || d.type === 'other').reduce((s,d)=>s+d.amount,0);
 }
 function trueHistoricMoneyTotal(){
   return donations.filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0);
@@ -1376,6 +1415,8 @@ function renderLedgerSearch(){
     let detail;
     if(d.type === 'money'){
       detail = fmtMoney(d.amount);
+    } else if(d.type === 'other'){
+      detail = fmtMoney(d.amount) + ' · Otro ingreso';
     } else {
       const f = config.foodGoals.find(x=>x.id===d.foodId);
       detail = fmtKg(d.amount) + ' · ' + (f ? f.name : 'alimento (categoría eliminada)');
@@ -1712,7 +1753,7 @@ function openEditDonationModal(id){
 
   const moneyFields = document.getElementById('editMoneyFields');
   const foodFields = document.getElementById('editFoodFields');
-  if(d.type === 'money'){
+  if(d.type === 'money' || d.type === 'other'){
     moneyFields.style.display = 'block';
     foodFields.style.display = 'none';
     document.getElementById('editMoneyAmount').value = d.amount;
@@ -1755,7 +1796,7 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     newTs = new Date(y, m-1, d2, orig.getHours(), orig.getMinutes(), orig.getSeconds()).toISOString();
   }
 
-  if(donations[idx].type === 'money'){
+  if(donations[idx].type === 'money' || donations[idx].type === 'other'){
     const amt = parseFloat(document.getElementById('editMoneyAmount').value);
     if(!amt || amt <= 0){
       errEl.textContent = 'Ingresá un monto válido.';
