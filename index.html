@@ -1177,6 +1177,7 @@ function openLedgerModal(){
   document.getElementById('ledgerPeriodFilter').value = ledgerFilterMode;
   document.getElementById('ledgerCustomRange').style.display = ledgerFilterMode === 'custom' ? 'block' : 'none';
   document.getElementById('ledgerSearchInput').value = '';
+  document.getElementById('ledgerTabMoney').click();
   renderLedger();
   renderLedgerSearch();
   ledgerOverlay.classList.add('show');
@@ -1382,17 +1383,25 @@ function generateInternalReport(){
 document.getElementById('generateReportBtn').addEventListener('click', generateDonorReport);
 document.getElementById('generateInternalReportBtn').addEventListener('click', generateInternalReport);
 
+let ledgerActiveType = 'money'; // 'money' | 'food'
+
 document.getElementById('ledgerTabMoney').addEventListener('click', () => {
   document.getElementById('ledgerTabMoney').classList.add('active');
   document.getElementById('ledgerTabFood').classList.remove('active');
   document.getElementById('ledgerMoneyView').style.display = 'block';
   document.getElementById('ledgerFoodView').style.display = 'none';
+  ledgerActiveType = 'money';
+  document.getElementById('ledgerSearchInput').placeholder = 'Buscar por nombre del donante...';
+  renderLedgerSearch();
 });
 document.getElementById('ledgerTabFood').addEventListener('click', () => {
   document.getElementById('ledgerTabFood').classList.add('active');
   document.getElementById('ledgerTabMoney').classList.remove('active');
   document.getElementById('ledgerFoodView').style.display = 'block';
   document.getElementById('ledgerMoneyView').style.display = 'none';
+  ledgerActiveType = 'food';
+  document.getElementById('ledgerSearchInput').placeholder = 'Buscar por nombre del donante (alimentos)...';
+  renderLedgerSearch();
 });
 
 function totalMoneyIn(){
@@ -1418,7 +1427,9 @@ let pendingDeleteIdSearch = null;
 function renderLedgerSearch(){
   const box = document.getElementById('ledgerSearchFeed');
   const q = (document.getElementById('ledgerSearchInput').value || '').trim().toLowerCase();
-  let list = [...getLedgerDonations()].sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+  let list = [...getLedgerDonations()]
+    .filter(d => ledgerActiveType === 'food' ? d.type === 'food' : (d.type === 'money' || d.type === 'other'))
+    .sort((a,b)=> new Date(b.ts) - new Date(a.ts));
   if(q){
     list = list.filter(d => (d.donor || 'anónimo').toLowerCase().includes(q));
   }
