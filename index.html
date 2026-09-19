@@ -1183,9 +1183,10 @@ document.getElementById('ledgerPeriodFilter').addEventListener('change', (e) => 
   ledgerFilterMode = e.target.value;
   document.getElementById('ledgerCustomRange').style.display = ledgerFilterMode === 'custom' ? 'block' : 'none';
   renderLedger();
+  renderLedgerSearch();
 });
-document.getElementById('ledgerFromDate').addEventListener('change', renderLedger);
-document.getElementById('ledgerToDate').addEventListener('change', renderLedger);
+document.getElementById('ledgerFromDate').addEventListener('change', () => { renderLedger(); renderLedgerSearch(); });
+document.getElementById('ledgerToDate').addEventListener('change', () => { renderLedger(); renderLedgerSearch(); });
 
 function getLedgerDonations(){
   if(ledgerFilterMode === 'current') return periodDonations();
