@@ -1411,7 +1411,7 @@ let pendingDeleteIdSearch = null;
 function renderLedgerSearch(){
   const box = document.getElementById('ledgerSearchFeed');
   const q = (document.getElementById('ledgerSearchInput').value || '').trim().toLowerCase();
-  let list = [...donations].sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+  let list = [...getLedgerDonations()].sort((a,b)=> new Date(b.ts) - new Date(a.ts));
   if(q){
     list = list.filter(d => (d.donor || 'anónimo').toLowerCase().includes(q));
   }
