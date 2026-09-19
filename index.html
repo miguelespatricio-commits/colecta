@@ -460,6 +460,12 @@
       <button class="btn-ghost" id="exitAdminBtn" style="flex:1;">Salir del modo administrador en este dispositivo</button>
     </div>
     <p class="hint">Al iniciar un nuevo período, las barras vuelven a cero. El historial de donaciones no se borra.</p>
+
+    <div class="settings-section">
+      <label style="margin-top:0;">Copia de seguridad</label>
+      <button type="button" class="btn-ghost" id="downloadBackupBtn" style="width:100%;">Descargar backup completo (.json)</button>
+      <p class="hint">Guarda toda la información (configuración, donaciones y egresos) en un archivo que podés conservar como respaldo.</p>
+    </div>
   </div>
 </div>
 <!-- Editar donación (admin) -->
@@ -2405,6 +2411,26 @@ document.getElementById('exitAdminBtn').addEventListener('click', () => {
   saveAdminFlag(false);
   settingsOverlay.classList.remove('show');
   render();
+});
+
+document.getElementById('downloadBackupBtn').addEventListener('click', () => {
+  const backup = {
+    generadoEl: new Date().toISOString(),
+    config: config,
+    donations: donations,
+    expenses: expenses
+  };
+  const jsonContent = JSON.stringify(backup, null, 2);
+  const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const today = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = 'backup_colecta_' + today + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 });
 
 // --- Init ---
