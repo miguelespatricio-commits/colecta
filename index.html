@@ -591,14 +591,17 @@
         <div style="margin-bottom:16px;">
           <div class="goal-total" id="ledgerMoneyInLabel" style="margin-bottom:3px;">Ingresado</div>
           <div class="num" id="ledgerMoneyIn" style="color:var(--done);">$0</div>
+          <div class="hint" id="ledgerMoneyInHistoric" style="margin-top:2px;display:none;"></div>
         </div>
         <div style="margin-bottom:16px;">
           <div class="goal-total" id="ledgerMoneyOutLabel" style="margin-bottom:3px;">Egresado</div>
           <div class="num" id="ledgerMoneyOut" style="color:var(--err);">$0</div>
+          <div class="hint" id="ledgerMoneyOutHistoric" style="margin-top:2px;display:none;"></div>
         </div>
         <div>
           <div class="goal-total" style="margin-bottom:3px;">Saldo disponible</div>
           <div class="num" id="ledgerMoneyBalance" style="color:var(--ink);">$0</div>
+          <div class="hint" id="ledgerMoneyBalanceHistoric" style="margin-top:2px;display:none;"></div>
         </div>
       </div>
 
@@ -1396,7 +1399,10 @@ function totalMoneyIn(){
   return getLedgerDonations().filter(d => d.type === 'money' || d.type === 'other').reduce((s,d)=>s+d.amount,0);
 }
 function trueHistoricMoneyTotal(){
-  return donations.filter(d => d.type === 'money').reduce((s,d)=>s+d.amount,0);
+  return donations.filter(d => d.type === 'money' || d.type === 'other').reduce((s,d)=>s+d.amount,0);
+}
+function trueHistoricMoneyOut(){
+  return expenses.filter(e => e.type === 'money').reduce((s,e)=>s+e.amount,0);
 }
 function totalMoneyOut(){
   return getLedgerExpenses().filter(e => e.type === 'money').reduce((s,e)=>s+e.amount,0);
@@ -1580,6 +1586,24 @@ function renderLedger(){
   const periodTxt = ledgerPeriodLabel();
   document.getElementById('ledgerMoneyInLabel').textContent = 'Ingresado · ' + periodTxt;
   document.getElementById('ledgerMoneyOutLabel').textContent = 'Egresado · ' + periodTxt;
+
+  const inHistoricEl = document.getElementById('ledgerMoneyInHistoric');
+  const outHistoricEl = document.getElementById('ledgerMoneyOutHistoric');
+  const balHistoricEl = document.getElementById('ledgerMoneyBalanceHistoric');
+  if(ledgerFilterMode === 'all'){
+    inHistoricEl.style.display = 'none';
+    outHistoricEl.style.display = 'none';
+    balHistoricEl.style.display = 'none';
+  } else {
+    const trueIn = trueHistoricMoneyTotal();
+    const trueOut = trueHistoricMoneyOut();
+    inHistoricEl.textContent = 'Histórico total: ' + fmtMoney(trueIn);
+    outHistoricEl.textContent = 'Histórico total: ' + fmtMoney(trueOut);
+    balHistoricEl.textContent = 'Histórico total: ' + fmtMoney(trueIn - trueOut);
+    inHistoricEl.style.display = 'block';
+    outHistoricEl.style.display = 'block';
+    balHistoricEl.style.display = 'block';
+  }
 
   const balancesWrap = document.getElementById('ledgerFoodBalances');
   balancesWrap.innerHTML = '';
