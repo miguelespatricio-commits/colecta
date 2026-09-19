@@ -588,15 +588,17 @@
 
     <div id="ledgerMoneyView">
       <div class="money-card" style="margin-top:16px;">
-        <div class="money-top">
-          <span class="num" id="ledgerMoneyIn">$0</span>
-          <span class="goal-total">ingresado (histórico)</span>
+        <div style="margin-bottom:16px;">
+          <div class="goal-total" style="margin-bottom:3px;">Ingresado (histórico)</div>
+          <div class="num" id="ledgerMoneyIn" style="color:var(--done);">$0</div>
         </div>
-        <div class="week-line" style="border-top:none;padding-top:0;">
-          <span>Egresado: <strong id="ledgerMoneyOut">$0</strong></span>
+        <div style="margin-bottom:16px;">
+          <div class="goal-total" style="margin-bottom:3px;">Egresado</div>
+          <div class="num" id="ledgerMoneyOut" style="color:var(--err);">$0</div>
         </div>
-        <div class="week-line">
-          <span>Saldo disponible: <strong id="ledgerMoneyBalance">$0</strong></span>
+        <div>
+          <div class="goal-total" style="margin-bottom:3px;">Saldo disponible</div>
+          <div class="num" id="ledgerMoneyBalance" style="color:var(--ink);">$0</div>
         </div>
       </div>
 
