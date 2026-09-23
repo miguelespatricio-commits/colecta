@@ -144,7 +144,14 @@
     background:var(--paper);width:100%;max-width:520px;
     border-radius:16px 16px 0 0;padding:22px 20px 26px;
     max-height:88vh;overflow-y:auto;
+    position:relative;
   }
+  .modal-close-btn{
+    position:absolute;top:14px;right:14px;
+    background:none;border:none;font-size:22px;line-height:1;
+    color:var(--ink-soft);cursor:pointer;padding:6px;
+  }
+  .modal-close-btn:active{opacity:.6;}
   .modal h2{font-size:19px;margin:0 0 16px;}
   label{display:block;font-size:13px;color:var(--ink-soft);margin:14px 0 6px;}
   input[type=text],input[type=number],input[type=password],select,textarea{
@@ -324,6 +331,7 @@
 <!-- Formulario donación -->
 <div class="overlay" id="formOverlay">
   <div class="modal">
+    <button type="button" class="modal-close-btn" onclick="document.getElementById('cancelFormBtn').click()">&#10005;</button>
     <h2>Cargar una donación</h2>
     <div id="donorNameField">
       <label for="donorName">Nombre y apellido</label>
@@ -380,6 +388,7 @@
 <!-- Acceso administrador -->
 <div class="overlay" id="adminOverlay">
   <div class="modal">
+    <button type="button" class="modal-close-btn" onclick="document.getElementById('cancelAdminBtn').click()">&#10005;</button>
     <h2 id="adminModalTitle">Acceso de administrador</h2>
     <div id="adminModalBody"></div>
     <div class="modal-actions">
@@ -392,6 +401,7 @@
 <!-- Configuración -->
 <div class="overlay" id="settingsOverlay">
   <div class="modal">
+    <button type="button" class="modal-close-btn" onclick="document.getElementById('cancelSettingsBtn').click()">&#10005;</button>
     <h2>Configuración</h2>
     <label for="setOrgName">Nombre del comedor</label>
     <input type="text" id="setOrgName">
@@ -504,6 +514,7 @@
 <!-- Editar egreso (admin) -->
 <div class="overlay" id="editExpenseOverlay">
   <div class="modal">
+    <button type="button" class="modal-close-btn" onclick="document.getElementById('cancelEditExpenseBtn').click()">&#10005;</button>
     <h2>Editar egreso</h2>
     <label for="editExpenseDesc">Descripción</label>
     <input type="text" id="editExpenseDesc" placeholder="Descripción del gasto">
@@ -560,6 +571,7 @@
 <!-- Ingresos y egresos (admin) -->
 <div class="overlay" id="ledgerOverlay">
   <div class="modal">
+    <button type="button" class="modal-close-btn" onclick="document.getElementById('closeLedgerBtn').click()">&#10005;</button>
     <h2>Ingresos y egresos</h2>
 
     <label for="ledgerPeriodFilter" style="margin-top:0;">Período a mostrar</label>
