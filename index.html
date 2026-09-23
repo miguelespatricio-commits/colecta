@@ -349,7 +349,7 @@
     <div id="moneyFields">
       <div id="bankInfoBox" style="display:none;background:var(--gold-soft);border:1px solid var(--gold);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px;line-height:1.5;"></div>
       <label for="moneyAmount">Monto ($)</label>
-      <input type="number" id="moneyAmount" placeholder="Ej: 5000" min="1">
+      <input type="number" id="moneyAmount" placeholder="Ej: 5000" min="0.01" step="0.01">
       <p class="locked" id="moneyLocked" style="display:none;">La meta de dinero de este período ya se alcanzó.</p>
     </div>
 
@@ -357,7 +357,7 @@
       <label for="foodCategory">Producto</label>
       <select id="foodCategory"></select>
       <label for="foodAmount">Cantidad (kg)</label>
-      <input type="number" id="foodAmount" placeholder="Ej: 2" min="0.1" step="0.1">
+      <input type="number" id="foodAmount" placeholder="Ej: 2" min="0.01" step="0.01">
       <p class="locked" id="foodLocked" style="display:none;">Esa categoría ya llegó a la meta de este período.</p>
     </div>
 
@@ -365,7 +365,7 @@
       <label for="otherTitle">Título del ingreso</label>
       <input type="text" id="otherTitle" placeholder="Ej: Intereses generados">
       <label for="otherAmount">Monto ($)</label>
-      <input type="number" id="otherAmount" placeholder="Ej: 3500" min="1">
+      <input type="number" id="otherAmount" placeholder="Ej: 3500" min="0.01" step="0.01">
     </div>
 
     <p class="form-err" id="formErr"></p>
@@ -483,14 +483,14 @@
 
     <div id="editMoneyFields">
       <label for="editMoneyAmount">Monto ($)</label>
-      <input type="number" id="editMoneyAmount" min="1">
+      <input type="number" id="editMoneyAmount" min="0.01" step="0.01">
     </div>
 
     <div id="editFoodFields" style="display:none;">
       <label for="editFoodCategory">Producto</label>
       <select id="editFoodCategory"></select>
       <label for="editFoodAmount">Cantidad (kg)</label>
-      <input type="number" id="editFoodAmount" min="0.1" step="0.1">
+      <input type="number" id="editFoodAmount" min="0.01" step="0.01">
     </div>
 
     <p class="form-err" id="editDonationErr"></p>
@@ -508,7 +508,7 @@
     <label for="editExpenseDesc">Descripción</label>
     <input type="text" id="editExpenseDesc" placeholder="Descripción del gasto">
     <label for="editExpenseAmount">Monto ($)</label>
-    <input type="number" id="editExpenseAmount" min="1">
+    <input type="number" id="editExpenseAmount" min="0.01" step="0.01">
     <label for="editExpenseDate">Fecha del egreso</label>
     <input type="date" id="editExpenseDate">
 
@@ -534,7 +534,7 @@
       <label for="expMoneyDesc">Descripción</label>
       <input type="text" id="expMoneyDesc" placeholder="Ej: Compra de verdura en el mercado">
       <label for="expMoneyAmount">Monto ($)</label>
-      <input type="number" id="expMoneyAmount" min="1">
+      <input type="number" id="expMoneyAmount" min="0.01" step="0.01">
     </div>
 
     <div id="expFoodFields" style="display:none;">
@@ -543,7 +543,7 @@
       <label for="expFoodDesc">Descripción (opcional)</label>
       <input type="text" id="expFoodDesc" placeholder="Ej: Usado para el guiso del sábado">
       <label for="expFoodAmount">Cantidad (kg)</label>
-      <input type="number" id="expFoodAmount" min="0.1" step="0.1">
+      <input type="number" id="expFoodAmount" min="0.01" step="0.01">
     </div>
 
     <label for="expenseDate">Fecha del egreso (opcional, para cargar egresos anteriores)</label>
@@ -716,8 +716,8 @@ let expenses = [];
 let isAdmin = false;
 let pendingDeleteId = null;
 
-function fmtMoney(n){ return '$' + Math.round(n).toLocaleString('es-AR'); }
-function fmtKg(n){ return (Math.round(n*10)/10).toLocaleString('es-AR') + ' kg'; }
+function fmtMoney(n){ return '$' + n.toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:2}); }
+function fmtKg(n){ return (Math.round(n*100)/100).toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:2}) + ' kg'; }
 function getMonday(d){
   const date = new Date(d);
   const day = date.getDay();
