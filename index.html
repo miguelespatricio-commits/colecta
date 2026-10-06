@@ -378,7 +378,7 @@
     <div id="utensilsFields" style="display:none;">
       <label for="utensilsItemLink">Vincular a un objetivo (opcional)</label>
       <select id="utensilsItemLink"><option value="">Sin vincular a un objetivo específico</option></select>
-      <label for="utensilsDesc">Descripción del artículo</label>
+      <label for="utensilsDesc">Descripción del artículo (opcional si elegiste un objetivo arriba)</label>
       <input type="text" id="utensilsDesc" placeholder="Ej: Batidora eléctrica">
       <label for="utensilsAmount">Valor de referencia ($) — opcional</label>
       <input type="number" id="utensilsAmount" placeholder="Ej: 15000" min="0" step="0.01">
@@ -1246,11 +1246,15 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     const donor = document.getElementById('donorName').value.trim();
     if(!donor){ formErr.textContent = 'Ingresá tu nombre y apellido.'; formErr.classList.add('show'); return; }
     const isPublic = document.getElementById('donationPublic').checked;
-    const desc = document.getElementById('utensilsDesc').value.trim();
-    if(!desc){ formErr.textContent = 'Ingresá una descripción del artículo.'; formErr.classList.add('show'); return; }
+    const utensilsItemId = document.getElementById('utensilsItemLink').value || '';
+    let desc = document.getElementById('utensilsDesc').value.trim();
+    if(!desc && !utensilsItemId){ formErr.textContent = 'Ingresá una descripción del artículo.'; formErr.classList.add('show'); return; }
+    if(!desc && utensilsItemId){
+      const linkedGoal = (config.utensilsGoals || []).find(u => u.id === utensilsItemId);
+      desc = linkedGoal ? linkedGoal.name : '';
+    }
     const rawAmt = document.getElementById('utensilsAmount').value;
     const amt = rawAmt ? parseFloat(rawAmt) : 0;
-    const utensilsItemId = document.getElementById('utensilsItemLink').value || '';
     entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'utensils', desc, amount: amt || 0, utensilsItemId, ts };
   } else {
     const donor = document.getElementById('donorName').value.trim();
