@@ -307,6 +307,11 @@
     <div id="foodList"></div>
   </section>
 
+  <section class="block" id="utensilsGoalsSection" style="display:none;">
+    <p class="block-title">Utensilios e infraestructura — objetivos</p>
+    <div id="utensilsGoalsList"></div>
+  </section>
+
   <section class="block" id="dropoffSection" style="display:none;">
     <p class="block-title">Dónde dejar tu donación de alimentos</p>
     <div id="dropoffList"></div>
@@ -371,6 +376,8 @@
     </div>
 
     <div id="utensilsFields" style="display:none;">
+      <label for="utensilsItemLink">Vincular a un objetivo (opcional)</label>
+      <select id="utensilsItemLink"><option value="">Sin vincular a un objetivo específico</option></select>
       <label for="utensilsDesc">Descripción del artículo</label>
       <input type="text" id="utensilsDesc" placeholder="Ej: Batidora eléctrica">
       <label for="utensilsAmount">Valor de referencia ($) — opcional</label>
@@ -437,6 +444,13 @@
       <label style="margin-top:0;">Categorías de alimentos</label>
       <div id="foodGoalsEdit"></div>
       <button type="button" class="add-link" id="addFoodBtn">+ Agregar categoría de alimento</button>
+    </div>
+
+    <div class="settings-section">
+      <label style="margin-top:0;">Objetivos de utensilios / infraestructura</label>
+      <div id="utensilsGoalsEdit"></div>
+      <button type="button" class="add-link" id="addUtensilsGoalBtn">+ Agregar objetivo</button>
+      <p class="hint">Ej: "Batidora nueva" con un valor de referencia de $15.000. Al cargar una donación de utensilios, se puede vincular a este objetivo para ver el progreso en la portada.</p>
     </div>
 
     <div class="settings-section">
@@ -513,6 +527,8 @@
     </div>
 
     <div id="editUtensilsFields" style="display:none;">
+      <label for="editUtensilsItemLink">Vincular a un objetivo (opcional)</label>
+      <select id="editUtensilsItemLink"><option value="">Sin vincular a un objetivo específico</option></select>
       <label for="editUtensilsDesc">Descripción del artículo</label>
       <input type="text" id="editUtensilsDesc">
       <label for="editUtensilsAmount">Valor de referencia ($) — opcional</label>
@@ -726,6 +742,7 @@ const DEFAULT_CONFIG = {
     { id: 'secos', name: 'Arroz, fideos y verdura', goal: 10 },
     { id: 'carne', name: 'Carne', goal: 6 }
   ],
+  utensilsGoals: [],
   dropoffPoints: [],
   aboutText: '',
   socialLinks: [],
@@ -815,6 +832,7 @@ function hideGlobalBanner(){
 function sanitizeConfig(raw){
   const c = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), raw || {});
   if(!Array.isArray(c.foodGoals)) c.foodGoals = DEFAULT_CONFIG.foodGoals;
+  if(!Array.isArray(c.utensilsGoals)) c.utensilsGoals = [];
   if(!Array.isArray(c.dropoffPoints)) c.dropoffPoints = [];
   if(!Array.isArray(c.socialLinks)) c.socialLinks = [];
   if(!Array.isArray(c.news)) c.news = [];
@@ -860,6 +878,7 @@ function monthDonations(){
 function moneyTotal(){ return monthDonations().reduce((s,d)=>s+d.amount,0); }
 function weekTotal(){ return weekDonations().reduce((s,d)=>s+d.amount,0); }
 function foodTotal(id){ return periodDonations().filter(d => d.type === 'food' && d.foodId === id).reduce((s,d)=>s+d.amount,0); }
+function utensilsTotal(id){ return periodDonations().filter(d => d.type === 'utensils' && d.utensilsItemId === id).reduce((s,d)=>s+(d.amount||0),0); }
 
 function render(){
   document.getElementById('orgName').textContent = config.orgName;
@@ -941,6 +960,33 @@ function render(){
     `;
     foodList.appendChild(row);
   });
+
+  const utensilsGoalsSection = document.getElementById('utensilsGoalsSection');
+  const utensilsGoalsList = document.getElementById('utensilsGoalsList');
+  utensilsGoalsList.innerHTML = '';
+  if(config.utensilsGoals && config.utensilsGoals.length > 0){
+    utensilsGoalsSection.style.display = 'block';
+    config.utensilsGoals.forEach((u, i) => {
+      const now = utensilsTotal(u.id);
+      const pct = u.goal > 0 ? Math.min(100, (now/u.goal)*100) : 0;
+      const colors = PALETTE[i % PALETTE.length];
+      const fillColor = pct >= 100 ? 'var(--done)' : colors.fill;
+      const trackColor = pct >= 100 ? 'var(--done-soft)' : colors.track;
+      const row = document.createElement('div');
+      row.className = 'food-row';
+      row.innerHTML = `
+        <div class="food-row-top">
+          <span class="name">${u.name}</span>
+          <span class="amt">${fmtMoney(now)} de ${fmtMoney(u.goal)}</span>
+        </div>
+        <div class="bar-track" style="background:${trackColor}"><div class="bar-fill" style="width:${pct}%;background:${fillColor}"></div></div>
+        ${pct>=100 ? '<div class="locked" style="margin-top:6px;">Objetivo alcanzado — ¡gracias!</div>' : ''}
+      `;
+      utensilsGoalsList.appendChild(row);
+    });
+  } else {
+    utensilsGoalsSection.style.display = 'none';
+  }
 
   const dropoffSection = document.getElementById('dropoffSection');
   const dropoffList = document.getElementById('dropoffList');
@@ -1031,6 +1077,7 @@ function render(){
     });
   }  
   populateFoodSelect();
+  populateUtensilsSelect();
   updateFormLocks();
 }
 
@@ -1044,6 +1091,20 @@ function populateFoodSelect(){
     opt.value = f.id;
     opt.textContent = f.name + (now >= f.goal ? ' (meta alcanzada)' : '');
     opt.disabled = now >= f.goal;
+    sel.appendChild(opt);
+  });
+  if(prevVal) sel.value = prevVal;
+}
+
+function populateUtensilsSelect(){
+  const sel = document.getElementById('utensilsItemLink');
+  if(!sel) return;
+  const prevVal = sel.value;
+  sel.innerHTML = '<option value="">Sin vincular a un objetivo específico</option>';
+  (config.utensilsGoals || []).forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.id;
+    opt.textContent = u.name;
     sel.appendChild(opt);
   });
   if(prevVal) sel.value = prevVal;
@@ -1189,7 +1250,8 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     if(!desc){ formErr.textContent = 'Ingresá una descripción del artículo.'; formErr.classList.add('show'); return; }
     const rawAmt = document.getElementById('utensilsAmount').value;
     const amt = rawAmt ? parseFloat(rawAmt) : 0;
-    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'utensils', desc, amount: amt || 0, ts };
+    const utensilsItemId = document.getElementById('utensilsItemLink').value || '';
+    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'utensils', desc, amount: amt || 0, utensilsItemId, ts };
   } else {
     const donor = document.getElementById('donorName').value.trim();
     if(!donor){ formErr.textContent = 'Ingresá tu nombre y apellido.'; formErr.classList.add('show'); return; }
@@ -1218,6 +1280,7 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     document.getElementById('otherAmount').value = '';
     document.getElementById('utensilsDesc').value = '';
     document.getElementById('utensilsAmount').value = '';
+    document.getElementById('utensilsItemLink').value = '';
     document.getElementById('donationPublic').checked = false;
     document.getElementById('donationDate').value = '';
     formOverlay.classList.remove('show');
@@ -1921,6 +1984,15 @@ function openEditDonationModal(id){
     moneyFields.style.display = 'none';
     foodFields.style.display = 'none';
     utensilsFields.style.display = 'block';
+    const utSel = document.getElementById('editUtensilsItemLink');
+    utSel.innerHTML = '<option value="">Sin vincular a un objetivo específico</option>';
+    (config.utensilsGoals || []).forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u.id;
+      opt.textContent = u.name;
+      utSel.appendChild(opt);
+    });
+    utSel.value = d.utensilsItemId || '';
     document.getElementById('editUtensilsDesc').value = d.desc || '';
     document.getElementById('editUtensilsAmount').value = d.amount || '';
   } else {
@@ -1985,6 +2057,7 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     donations[idx].donor = donor;
     donations[idx].desc = desc;
     donations[idx].amount = rawAmt ? parseFloat(rawAmt) : 0;
+    donations[idx].utensilsItemId = document.getElementById('editUtensilsItemLink').value || '';
     donations[idx].isPublic = document.getElementById('editDonationPublic').checked;
     donations[idx].ts = newTs;
   } else {
@@ -2277,6 +2350,7 @@ function openSettingsModal(){
   document.getElementById('setBankEntity').value = config.bankEntity || '';
   document.getElementById('setAboutText').value = config.aboutText || '';
   renderFoodGoalsEdit();
+  renderUtensilsGoalsEdit();
   renderDropoffEdit();
   renderSocialLinksEdit();
   renderNewsEdit();
@@ -2320,6 +2394,44 @@ function drawFoodGoalsEdit(){
 document.getElementById('addFoodBtn').addEventListener('click', () => {
   editFoodGoals.push({ id: '', name: '', goal: 0 });
   drawFoodGoalsEdit();
+});
+
+let editUtensilsGoals = [];
+function renderUtensilsGoalsEdit(){
+  editUtensilsGoals = JSON.parse(JSON.stringify(config.utensilsGoals || []));
+  drawUtensilsGoalsEdit();
+}
+function drawUtensilsGoalsEdit(){
+  const wrap = document.getElementById('utensilsGoalsEdit');
+  wrap.innerHTML = '';
+  editUtensilsGoals.forEach((u, i) => {
+    const div = document.createElement('div');
+    div.className = 'edit-card';
+    div.innerHTML = `
+      <input type="text" data-idx="${i}" data-field="name" value="${u.name}" placeholder="Ej: Batidora nueva">
+      <div class="row2">
+        <input type="number" data-idx="${i}" data-field="goal" value="${u.goal}" min="0" step="0.01" placeholder="Valor de referencia ($)">
+      </div>
+      <button type="button" class="remove-link" data-remove="${i}">Eliminar objetivo</button>
+    `;
+    wrap.appendChild(div);
+  });
+  wrap.querySelectorAll('input[data-field="name"]').forEach(inp => {
+    inp.addEventListener('input', e => { editUtensilsGoals[e.target.dataset.idx].name = e.target.value; });
+  });
+  wrap.querySelectorAll('input[data-field="goal"]').forEach(inp => {
+    inp.addEventListener('input', e => { editUtensilsGoals[e.target.dataset.idx].goal = parseFloat(e.target.value) || 0; });
+  });
+  wrap.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      editUtensilsGoals.splice(parseInt(e.target.dataset.remove), 1);
+      drawUtensilsGoalsEdit();
+    });
+  });
+}
+document.getElementById('addUtensilsGoalBtn').addEventListener('click', () => {
+  editUtensilsGoals.push({ id: '', name: '', goal: 0 });
+  drawUtensilsGoalsEdit();
 });
 
 let editDropoff = [];
@@ -2453,6 +2565,16 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
       if(!id){ id = uniqueId(slugify(f.name), existingIds); }
       existingIds.push(id);
       return { id, name: f.name.trim(), goal: f.goal || 0 };
+    });
+
+  const existingUtensilsIds = [];
+  config.utensilsGoals = editUtensilsGoals
+    .filter(u => u.name && u.name.trim())
+    .map(u => {
+      let id = u.id;
+      if(!id){ id = uniqueId(slugify(u.name), existingUtensilsIds); }
+      existingUtensilsIds.push(id);
+      return { id, name: u.name.trim(), goal: u.goal || 0 };
     });
 
   config.dropoffPoints = editDropoff
