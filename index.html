@@ -346,6 +346,7 @@
     <div class="seg">
       <button type="button" id="tabMoney" class="active">Dinero</button>
       <button type="button" id="tabFood">Alimentos</button>
+      <button type="button" id="tabUtensils">Utensilios</button>
       <button type="button" id="tabOther" style="display:none;">Otro ingreso</button>
     </div>
 
@@ -367,6 +368,13 @@
       <label for="foodAmount">Cantidad (kg)</label>
       <input type="number" id="foodAmount" placeholder="Ej: 2" min="0.01" step="0.01">
       <p class="locked" id="foodLocked" style="display:none;">Esa categoría ya llegó a la meta de este período.</p>
+    </div>
+
+    <div id="utensilsFields" style="display:none;">
+      <label for="utensilsDesc">Descripción del artículo</label>
+      <input type="text" id="utensilsDesc" placeholder="Ej: Batidora eléctrica">
+      <label for="utensilsAmount">Valor de referencia ($) — opcional</label>
+      <input type="number" id="utensilsAmount" placeholder="Ej: 15000" min="0" step="0.01">
     </div>
 
     <div id="otherFields" style="display:none;">
@@ -504,6 +512,13 @@
       <input type="number" id="editFoodAmount" min="0.01" step="0.01">
     </div>
 
+    <div id="editUtensilsFields" style="display:none;">
+      <label for="editUtensilsDesc">Descripción del artículo</label>
+      <input type="text" id="editUtensilsDesc">
+      <label for="editUtensilsAmount">Valor de referencia ($) — opcional</label>
+      <input type="number" id="editUtensilsAmount" min="0" step="0.01">
+    </div>
+
     <p class="form-err" id="editDonationErr"></p>
 
     <div class="modal-actions">
@@ -598,6 +613,7 @@
     <div class="seg" style="margin-top:16px;">
       <button type="button" id="ledgerTabMoney" class="active">Dinero</button>
       <button type="button" id="ledgerTabFood">Alimentos</button>
+      <button type="button" id="ledgerTabUtensils">Utensilios</button>
     </div>
 
     <div class="settings-section">
@@ -978,6 +994,8 @@ function render(){
         detail = fmtMoney(d.amount);
       } else if(d.type === 'other'){
         detail = fmtMoney(d.amount) + ' · Otro ingreso';
+      } else if(d.type === 'utensils'){
+        detail = d.desc + (d.amount > 0 ? ' · Valor ref.: ' + fmtMoney(d.amount) : ' · Utensilios/infraestructura');
       } else {
         const f = config.foodGoals.find(x=>x.id===d.foodId);
         detail = fmtKg(d.amount) + ' · ' + (f ? f.name : 'alimento (categoría eliminada)');
@@ -1062,8 +1080,9 @@ function updateFormLocks(){
 function refreshSubmitState(){
   const isMoney = document.getElementById('tabMoney').classList.contains('active');
   const isOther = document.getElementById('tabOther').classList.contains('active');
+  const isUtensils = document.getElementById('tabUtensils').classList.contains('active');
   const btn = document.getElementById('submitFormBtn');
-  if(isOther){
+  if(isOther || isUtensils){
     btn.disabled = false;
   } else if(isMoney){
     btn.disabled = config.moneyGoalMonthly > 0 && moneyTotal() >= config.moneyGoalMonthly;
@@ -1087,9 +1106,11 @@ document.getElementById('cancelFormBtn').addEventListener('click', () => formOve
 document.getElementById('tabMoney').addEventListener('click', () => {
   document.getElementById('tabMoney').classList.add('active');
   document.getElementById('tabFood').classList.remove('active');
+  document.getElementById('tabUtensils').classList.remove('active');
   document.getElementById('tabOther').classList.remove('active');
   document.getElementById('moneyFields').style.display = 'block';
   document.getElementById('foodFields').style.display = 'none';
+  document.getElementById('utensilsFields').style.display = 'none';
   document.getElementById('otherFields').style.display = 'none';
   document.getElementById('donorNameField').style.display = 'block';
   document.getElementById('donationPublicField').style.display = 'flex';
@@ -1098,9 +1119,24 @@ document.getElementById('tabMoney').addEventListener('click', () => {
 document.getElementById('tabFood').addEventListener('click', () => {
   document.getElementById('tabFood').classList.add('active');
   document.getElementById('tabMoney').classList.remove('active');
+  document.getElementById('tabUtensils').classList.remove('active');
   document.getElementById('tabOther').classList.remove('active');
   document.getElementById('foodFields').style.display = 'block';
   document.getElementById('moneyFields').style.display = 'none';
+  document.getElementById('utensilsFields').style.display = 'none';
+  document.getElementById('otherFields').style.display = 'none';
+  document.getElementById('donorNameField').style.display = 'block';
+  document.getElementById('donationPublicField').style.display = 'flex';
+  refreshSubmitState();
+});
+document.getElementById('tabUtensils').addEventListener('click', () => {
+  document.getElementById('tabUtensils').classList.add('active');
+  document.getElementById('tabMoney').classList.remove('active');
+  document.getElementById('tabFood').classList.remove('active');
+  document.getElementById('tabOther').classList.remove('active');
+  document.getElementById('utensilsFields').style.display = 'block';
+  document.getElementById('moneyFields').style.display = 'none';
+  document.getElementById('foodFields').style.display = 'none';
   document.getElementById('otherFields').style.display = 'none';
   document.getElementById('donorNameField').style.display = 'block';
   document.getElementById('donationPublicField').style.display = 'flex';
@@ -1110,9 +1146,11 @@ document.getElementById('tabOther').addEventListener('click', () => {
   document.getElementById('tabOther').classList.add('active');
   document.getElementById('tabMoney').classList.remove('active');
   document.getElementById('tabFood').classList.remove('active');
+  document.getElementById('tabUtensils').classList.remove('active');
   document.getElementById('otherFields').style.display = 'block';
   document.getElementById('moneyFields').style.display = 'none';
   document.getElementById('foodFields').style.display = 'none';
+  document.getElementById('utensilsFields').style.display = 'none';
   document.getElementById('donorNameField').style.display = 'none';
   document.getElementById('donationPublicField').style.display = 'none';
   refreshSubmitState();
@@ -1124,6 +1162,7 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
   formErr.classList.remove('show');
   const isMoney = document.getElementById('tabMoney').classList.contains('active');
   const isOther = document.getElementById('tabOther').classList.contains('active');
+  const isUtensils = document.getElementById('tabUtensils').classList.contains('active');
 
   let ts = new Date().toISOString();
   if(isAdmin){
@@ -1142,6 +1181,15 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     if(!title){ formErr.textContent = 'Ingresá un título para el ingreso.'; formErr.classList.add('show'); return; }
     if(!amt || amt <= 0){ formErr.textContent = 'Ingresá un monto válido.'; formErr.classList.add('show'); return; }
     entry = { id: Date.now()+'-'+Math.random(), donor: title, isPublic: true, type:'other', amount: amt, ts };
+  } else if(isUtensils){
+    const donor = document.getElementById('donorName').value.trim();
+    if(!donor){ formErr.textContent = 'Ingresá tu nombre y apellido.'; formErr.classList.add('show'); return; }
+    const isPublic = document.getElementById('donationPublic').checked;
+    const desc = document.getElementById('utensilsDesc').value.trim();
+    if(!desc){ formErr.textContent = 'Ingresá una descripción del artículo.'; formErr.classList.add('show'); return; }
+    const rawAmt = document.getElementById('utensilsAmount').value;
+    const amt = rawAmt ? parseFloat(rawAmt) : 0;
+    entry = { id: Date.now()+'-'+Math.random(), donor, isPublic, type:'utensils', desc, amount: amt || 0, ts };
   } else {
     const donor = document.getElementById('donorName').value.trim();
     if(!donor){ formErr.textContent = 'Ingresá tu nombre y apellido.'; formErr.classList.add('show'); return; }
@@ -1168,6 +1216,8 @@ document.getElementById('submitFormBtn').addEventListener('click', async () => {
     document.getElementById('foodAmount').value = '';
     document.getElementById('otherTitle').value = '';
     document.getElementById('otherAmount').value = '';
+    document.getElementById('utensilsDesc').value = '';
+    document.getElementById('utensilsAmount').value = '';
     document.getElementById('donationPublic').checked = false;
     document.getElementById('donationDate').value = '';
     formOverlay.classList.remove('show');
@@ -1386,6 +1436,14 @@ function buildReportHTML(anonymize){
         </table>
       </div>
 
+      <div class="report-section">
+        <h2>Donaciones de utensilios e infraestructura</h2>
+        <table class="report-table">
+          <tr><th>Fecha</th><th>Donante</th><th>Artículo</th><th>Valor de referencia</th></tr>
+          ${getLedgerDonations().filter(d=>d.type==='utensils').sort((a,b)=>new Date(a.ts)-new Date(b.ts)).map(d => `<tr><td>${new Date(d.ts).toLocaleDateString('es-AR')}</td><td>${nameFor(d)}</td><td>${d.desc||''}</td><td>${d.amount>0?fmtMoney(d.amount):'—'}</td></tr>`).join('') || '<tr><td colspan="4">Sin registros</td></tr>'}
+        </table>
+      </div>
+
       <div class="report-footer">${anonymize ? ('Gracias a cada persona que colabora con ' + config.orgName + '.') : 'Documento de uso interno — no compartir con donantes.'}</div>
     </div>
   `;
@@ -1408,8 +1466,10 @@ let ledgerActiveType = 'money'; // 'money' | 'food'
 document.getElementById('ledgerTabMoney').addEventListener('click', () => {
   document.getElementById('ledgerTabMoney').classList.add('active');
   document.getElementById('ledgerTabFood').classList.remove('active');
+  document.getElementById('ledgerTabUtensils').classList.remove('active');
   document.getElementById('ledgerMoneyView').style.display = 'block';
   document.getElementById('ledgerFoodView').style.display = 'none';
+  document.getElementById('ledgerSearchFeed').style.display = 'block';
   ledgerActiveType = 'money';
   document.getElementById('ledgerSearchInput').placeholder = 'Buscar por nombre del donante...';
   renderLedgerSearch();
@@ -1417,10 +1477,23 @@ document.getElementById('ledgerTabMoney').addEventListener('click', () => {
 document.getElementById('ledgerTabFood').addEventListener('click', () => {
   document.getElementById('ledgerTabFood').classList.add('active');
   document.getElementById('ledgerTabMoney').classList.remove('active');
+  document.getElementById('ledgerTabUtensils').classList.remove('active');
   document.getElementById('ledgerFoodView').style.display = 'block';
   document.getElementById('ledgerMoneyView').style.display = 'none';
+  document.getElementById('ledgerSearchFeed').style.display = 'block';
   ledgerActiveType = 'food';
   document.getElementById('ledgerSearchInput').placeholder = 'Buscar por nombre del donante (alimentos)...';
+  renderLedgerSearch();
+});
+document.getElementById('ledgerTabUtensils').addEventListener('click', () => {
+  document.getElementById('ledgerTabUtensils').classList.add('active');
+  document.getElementById('ledgerTabMoney').classList.remove('active');
+  document.getElementById('ledgerTabFood').classList.remove('active');
+  document.getElementById('ledgerFoodView').style.display = 'none';
+  document.getElementById('ledgerMoneyView').style.display = 'none';
+  document.getElementById('ledgerSearchFeed').style.display = 'block';
+  ledgerActiveType = 'utensils';
+  document.getElementById('ledgerSearchInput').placeholder = 'Buscar por nombre del donante (utensilios)...';
   renderLedgerSearch();
 });
 
@@ -1448,7 +1521,11 @@ function renderLedgerSearch(){
   const box = document.getElementById('ledgerSearchFeed');
   const q = (document.getElementById('ledgerSearchInput').value || '').trim().toLowerCase();
   let list = [...getLedgerDonations()]
-    .filter(d => ledgerActiveType === 'food' ? d.type === 'food' : (d.type === 'money' || d.type === 'other'))
+    .filter(d => {
+      if(ledgerActiveType === 'food') return d.type === 'food';
+      if(ledgerActiveType === 'utensils') return d.type === 'utensils';
+      return d.type === 'money' || d.type === 'other';
+    })
     .sort((a,b)=> new Date(b.ts) - new Date(a.ts));
   if(q){
     list = list.filter(d => (d.donor || 'anónimo').toLowerCase().includes(q));
@@ -1466,6 +1543,8 @@ function renderLedgerSearch(){
       detail = fmtMoney(d.amount);
     } else if(d.type === 'other'){
       detail = fmtMoney(d.amount) + ' · Otro ingreso';
+    } else if(d.type === 'utensils'){
+      detail = d.desc + (d.amount > 0 ? ' · Valor ref.: ' + fmtMoney(d.amount) : ' · Utensilios/infraestructura');
     } else {
       const f = config.foodGoals.find(x=>x.id===d.foodId);
       detail = fmtKg(d.amount) + ' · ' + (f ? f.name : 'alimento (categoría eliminada)');
@@ -1832,13 +1911,22 @@ function openEditDonationModal(id){
 
   const moneyFields = document.getElementById('editMoneyFields');
   const foodFields = document.getElementById('editFoodFields');
+  const utensilsFields = document.getElementById('editUtensilsFields');
   if(d.type === 'money' || d.type === 'other'){
     moneyFields.style.display = 'block';
     foodFields.style.display = 'none';
+    utensilsFields.style.display = 'none';
     document.getElementById('editMoneyAmount').value = d.amount;
+  } else if(d.type === 'utensils'){
+    moneyFields.style.display = 'none';
+    foodFields.style.display = 'none';
+    utensilsFields.style.display = 'block';
+    document.getElementById('editUtensilsDesc').value = d.desc || '';
+    document.getElementById('editUtensilsAmount').value = d.amount || '';
   } else {
     moneyFields.style.display = 'none';
     foodFields.style.display = 'block';
+    utensilsFields.style.display = 'none';
     const sel = document.getElementById('editFoodCategory');
     sel.innerHTML = '';
     config.foodGoals.forEach(f => {
@@ -1884,6 +1972,19 @@ document.getElementById('saveEditDonationBtn').addEventListener('click', async (
     }
     donations[idx].donor = donor;
     donations[idx].amount = amt;
+    donations[idx].isPublic = document.getElementById('editDonationPublic').checked;
+    donations[idx].ts = newTs;
+  } else if(donations[idx].type === 'utensils'){
+    const desc = document.getElementById('editUtensilsDesc').value.trim();
+    const rawAmt = document.getElementById('editUtensilsAmount').value;
+    if(!desc){
+      errEl.textContent = 'Ingresá una descripción del artículo.';
+      errEl.classList.add('show');
+      return;
+    }
+    donations[idx].donor = donor;
+    donations[idx].desc = desc;
+    donations[idx].amount = rawAmt ? parseFloat(rawAmt) : 0;
     donations[idx].isPublic = document.getElementById('editDonationPublic').checked;
     donations[idx].ts = newTs;
   } else {
