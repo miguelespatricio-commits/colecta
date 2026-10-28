@@ -283,6 +283,7 @@
         <span class="goal-total">de <span id="weekGoal">$0</span></span>
       </div>
       <div class="bar-track"><div class="bar-fill" id="weekBar" style="width:0%"></div></div>
+      <div class="banner" id="weekBanner">Meta de la semana alcanzada — ¡gracias! Lo que se done de más va a ayudar con la meta de la semana siguiente.</div>
     </div>
   </section>
 
@@ -294,7 +295,7 @@
         <span class="goal-total">de <span id="moneyGoal">$0</span></span>
       </div>
       <div class="bar-track"><div class="bar-fill" id="moneyBar" style="width:0%"></div></div>
-      <div class="banner" id="moneyBanner">Meta del período alcanzada — ¡gracias! Las donaciones en dinero quedan en pausa.</div>
+      <div class="banner" id="moneyBanner">Meta del mes alcanzada — ¡gracias! Podés seguir donando: lo que se done de más va a ayudar con la meta del mes siguiente.</div>
       <div class="week-line">
         <span>Total histórico recaudado: <strong id="historicMoneyNow">$0</strong></span>
       </div>
@@ -926,6 +927,7 @@ function render(){
   const weekBar = document.getElementById('weekBar');
   weekBar.style.width = wPct + '%';
   weekBar.style.background = wPct >= 100 ? 'var(--done)' : 'var(--gold)';
+  document.getElementById('weekBanner').classList.toggle('show', wPct >= 100);
 
   document.getElementById('historicMoneyNow').textContent = fmtMoney(trueHistoricMoneyTotal());
 
@@ -1090,7 +1092,6 @@ function populateFoodSelect(){
     const opt = document.createElement('option');
     opt.value = f.id;
     opt.textContent = f.name + (now >= f.goal ? ' (meta alcanzada)' : '');
-    opt.disabled = now >= f.goal;
     sel.appendChild(opt);
   });
   if(prevVal) sel.value = prevVal;
@@ -1128,12 +1129,18 @@ function updateBankInfoBox(){
 function updateFormLocks(){
   updateBankInfoBox();
   const moneyDone = config.moneyGoalMonthly > 0 && moneyTotal() >= config.moneyGoalMonthly;
-  document.getElementById('moneyLocked').style.display = moneyDone ? 'block' : 'none';
-  document.getElementById('moneyAmount').disabled = moneyDone;
+  const moneyNote = document.getElementById('moneyLocked');
+  moneyNote.textContent = 'La meta de dinero de este mes ya se alcanzó. ¡Gracias! Podés donar igual: lo que se done de más va a ayudar con la meta del mes siguiente.';
+  moneyNote.style.display = moneyDone ? 'block' : 'none';
+  document.getElementById('moneyAmount').disabled = false;
 
-  const allFoodDone = config.foodGoals.length === 0 || config.foodGoals.every(f => foodTotal(f.id) >= f.goal);
-  document.getElementById('foodLocked').style.display = allFoodDone ? 'block' : 'none';
-  document.getElementById('foodAmount').disabled = allFoodDone;
+  const sel = document.getElementById('foodCategory');
+  const selectedGoal = config.foodGoals.find(f => f.id === sel.value);
+  const foodDone = !!selectedGoal && selectedGoal.goal > 0 && foodTotal(selectedGoal.id) >= selectedGoal.goal;
+  const foodNote = document.getElementById('foodLocked');
+  foodNote.textContent = 'Esa categoría ya llegó a la meta de este período. ¡Gracias! Podés donar igual: lo que se done de más va a ayudar con la próxima meta.';
+  foodNote.style.display = foodDone ? 'block' : 'none';
+  document.getElementById('foodAmount').disabled = config.foodGoals.length === 0;
 
   refreshSubmitState();
 }
@@ -1143,14 +1150,11 @@ function refreshSubmitState(){
   const isOther = document.getElementById('tabOther').classList.contains('active');
   const isUtensils = document.getElementById('tabUtensils').classList.contains('active');
   const btn = document.getElementById('submitFormBtn');
-  if(isOther || isUtensils){
+  if(isOther || isUtensils || isMoney){
     btn.disabled = false;
-  } else if(isMoney){
-    btn.disabled = config.moneyGoalMonthly > 0 && moneyTotal() >= config.moneyGoalMonthly;
   } else {
     const sel = document.getElementById('foodCategory');
-    const opt = sel.options[sel.selectedIndex];
-    btn.disabled = !opt || opt.disabled;
+    btn.disabled = sel.options.length === 0;
   }
 }
 
@@ -1216,7 +1220,7 @@ document.getElementById('tabOther').addEventListener('click', () => {
   document.getElementById('donationPublicField').style.display = 'none';
   refreshSubmitState();
 });
-document.getElementById('foodCategory').addEventListener('change', refreshSubmitState);
+document.getElementById('foodCategory').addEventListener('change', updateFormLocks);
 
 document.getElementById('submitFormBtn').addEventListener('click', async () => {
   const formErr = document.getElementById('formErr');
